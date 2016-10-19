@@ -3,9 +3,9 @@
 
 	<modelVersion>4.0.0</modelVersion>
 
-	<groupId>org.springframework.data</groupId>
-	<artifactId>spring-data-jpa</artifactId>
-	<version>1.10.5.BUILD-SNAPSHOT</version>
+	<groupId>com.autopilotcontrols.db</groupId>
+	<artifactId>spring-data-jpa-autopilot</artifactId>
+	<version>1.10.4.RELEASE</version>
 
 	<name>Spring Data JPA</name>
 	<description>Spring Data module for JPA repositories.</description>
@@ -14,7 +14,7 @@
 	<parent>
 		<groupId>org.springframework.data.build</groupId>
 		<artifactId>spring-data-parent</artifactId>
-		<version>1.8.5.BUILD-SNAPSHOT</version>
+		<version>1.8.4.RELEASE</version>
 	</parent>
 
 	<properties>
@@ -27,11 +27,33 @@
 		<hsqldb1>1.8.0.10</hsqldb1>
 		<jpa>2.0.0</jpa>
 		<openjpa>2.4.1</openjpa>
-		<springdata.commons>1.12.5.BUILD-SNAPSHOT</springdata.commons>
+		<springdata.commons>1.12.4.RELEASE</springdata.commons>
 
 		<sonar.dynamicAnalysis>reuseReports</sonar.dynamicAnalysis>
 
 	</properties>
+
+	<distributionManagement>
+		<repository>
+			<id>autopilot-internal-repo</id>
+			<name>AutoPilot Archiva Internal Repository</name>
+			<url>
+				http://repository.autopilotcontrols.com/repository/internal
+			</url>
+			<uniqueVersion>false</uniqueVersion>
+			<layout>default</layout>
+		</repository>
+		<snapshotRepository>
+			<id>autopilot-snapshot-repo</id>
+			<name>AutoPilot Archiva Snapshot Repository</name>
+			<url>
+				http://repository.autopilotcontrols.com/repository/snapshots
+			</url>
+			<uniqueVersion>true</uniqueVersion>
+			<layout>default</layout>
+		</snapshotRepository>
+	</distributionManagement>
+
 
 	<profiles>
 		<profile>
@@ -173,7 +195,7 @@
 	<dependencies>
 
 		<dependency>
-			<groupId>${project.groupId}</groupId>
+			<groupId>org.springframework.data</groupId>
 			<artifactId>spring-data-commons</artifactId>
 			<version>${springdata.commons}</version>
 		</dependency>
@@ -590,8 +612,8 @@
 
 	<repositories>
 		<repository>
-			<id>spring-libs-snapshot</id>
-			<url>https://repo.spring.io/libs-snapshot</url>
+			<id>spring-libs-release</id>
+			<url>https://repo.spring.io/libs-release</url>
 		</repository>
 	</repositories>
 
