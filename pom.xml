@@ -5,7 +5,7 @@
 
 	<groupId>com.autopilotcontrols.db</groupId>
 	<artifactId>spring-data-jpa-autopilot</artifactId>
-	<version>1.10.4.RELEASE</version>
+	<version>1.10.5.RELEASE</version>
 
 	<name>Spring Data JPA</name>
 	<description>Spring Data module for JPA repositories.</description>
@@ -35,19 +35,18 @@
 
 	<distributionManagement>
 		<repository>
-			<id>autopilot-internal-repo</id>
-			<name>AutoPilot Archiva Internal Repository</name>
+			<id>controls-release-repo</id>
+			<name>Sonnys Controls Release Repository</name>
 			<url>
-				http://repository.autopilotcontrols.com/repository/internal
+				https://artifact.internal.sonnyscontrols.com/artifactory/libs-release-local
 			</url>
-			<uniqueVersion>false</uniqueVersion>
 			<layout>default</layout>
 		</repository>
 		<snapshotRepository>
-			<id>autopilot-snapshot-repo</id>
-			<name>AutoPilot Archiva Snapshot Repository</name>
+			<id>controls-snapshot-repo</id>
+			<name>Sonnys Controls Snapshot Repository</name>
 			<url>
-				http://repository.autopilotcontrols.com/repository/snapshots
+				https://artifact.internal.sonnyscontrols.com/artifactory/libs-snapshot-local
 			</url>
 			<uniqueVersion>true</uniqueVersion>
 			<layout>default</layout>
