@@ -1,11 +1,11 @@
 /*
- * Copyright 2008-2016 the original author or authors.
+ * Copyright 2008-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,7 +17,6 @@ package org.springframework.data.jpa.repository.query;
 
 import javax.persistence.EntityManager;
 import javax.persistence.Query;
-import javax.persistence.Tuple;
 
 import org.springframework.data.repository.query.EvaluationContextProvider;
 import org.springframework.data.repository.query.ParameterAccessor;
@@ -75,8 +74,9 @@ abstract class AbstractStringBasedJpaQuery extends AbstractJpaQuery {
 
 		ParameterAccessor accessor = new ParametersParameterAccessor(getQueryMethod().getParameters(), values);
 		String sortedQueryString = QueryUtils.applySorting(query.getQueryString(), accessor.getSort(), query.getAlias());
+		ResultProcessor processor = getQueryMethod().getResultProcessor().withDynamicProjection(accessor);
 
-		Query query = createJpaQuery(sortedQueryString);
+		Query query = createJpaQuery(sortedQueryString, processor.getReturnedType());
 
 		return createBinder(values).bindAndPrepare(query);
 	}
@@ -101,8 +101,11 @@ abstract class AbstractStringBasedJpaQuery extends AbstractJpaQuery {
 		String queryString = countQuery.getQueryString();
 		EntityManager em = getEntityManager();
 
-		return createBinder(values).bind(
-				getQueryMethod().isNativeQuery() ? em.createNativeQuery(queryString) : em.createQuery(queryString, Long.class));
+		Query query = getQueryMethod().isNativeQuery() //
+				? em.createNativeQuery(queryString) //
+				: em.createQuery(queryString, Long.class);
+
+		return createBinder(values).bind(query);
 	}
 
 	/**
@@ -126,7 +129,7 @@ abstract class AbstractStringBasedJpaQuery extends AbstractJpaQuery {
 	 * @param queryString
 	 * @return
 	 */
-	protected Query createJpaQuery(String queryString) {
+	protected Query createJpaQuery(String queryString, ReturnedType returnedType) {
 
 		EntityManager em = getEntityManager();
 
@@ -134,11 +137,8 @@ abstract class AbstractStringBasedJpaQuery extends AbstractJpaQuery {
 			return em.createQuery(queryString);
 		}
 
-		ResultProcessor resultFactory = getQueryMethod().getResultProcessor();
-		ReturnedType returnedType = resultFactory.getReturnedType();
+		Class<?> typeToRead = getTypeToRead(returnedType);
 
-		return returnedType.isProjecting() && !getMetamodel().isJpaManaged(returnedType.getReturnedType()) //
-				? em.createQuery(queryString, Tuple.class) //
-				: em.createQuery(queryString);
+		return typeToRead == null ? em.createQuery(queryString) : em.createQuery(queryString, typeToRead);
 	}
 }

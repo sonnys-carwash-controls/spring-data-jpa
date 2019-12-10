@@ -1,11 +1,11 @@
 /*
- * Copyright 2013-2017 the original author or authors.
+ * Copyright 2013-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,9 +23,7 @@ import org.springframework.data.jpa.provider.HibernateUtils;
 import org.springframework.data.repository.query.EvaluationContextProvider;
 import org.springframework.data.repository.query.Parameters;
 import org.springframework.data.repository.query.RepositoryQuery;
-import org.springframework.data.repository.query.ResultProcessor;
 import org.springframework.data.repository.query.ReturnedType;
-import org.springframework.data.util.Version;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 
 /**
@@ -37,10 +35,6 @@ import org.springframework.expression.spel.standard.SpelExpressionParser;
  * @author Oliver Gierke
  */
 final class NativeJpaQuery extends AbstractStringBasedJpaQuery {
-
-	private static final Version HIBERNATE_VERSION_SUPPORTING_TUPLES = new Version(5, 2, 11);
-
-	private final Class<?> resultType;
 
 	/**
 	 * Creates a new {@link NativeJpaQuery} encapsulating the query annotated on the given {@link JpaQueryMethod}.
@@ -64,8 +58,6 @@ final class NativeJpaQuery extends AbstractStringBasedJpaQuery {
 			throw new InvalidJpaQueryMethodException(
 					"Cannot use native queries with dynamic sorting and/or pagination in method " + method);
 		}
-
-		this.resultType = getTypeToQueryFor();
 	}
 
 	/*
@@ -73,18 +65,15 @@ final class NativeJpaQuery extends AbstractStringBasedJpaQuery {
 	 * @see org.springframework.data.jpa.repository.query.AbstractStringBasedJpaQuery#createJpaQuery(java.lang.String)
 	 */
 	@Override
-	protected Query createJpaQuery(String queryString) {
+	protected Query createJpaQuery(String queryString, ReturnedType returnedType) {
 
 		EntityManager em = getEntityManager();
+		Class<?> type = getTypeToQueryFor(returnedType);
 
-		return this.resultType == null ? em.createNativeQuery(queryString)
-				: em.createNativeQuery(queryString, this.resultType);
+		return type == null ? em.createNativeQuery(queryString) : em.createNativeQuery(queryString, type);
 	}
 
-	private Class<?> getTypeToQueryFor() {
-
-		ResultProcessor resultFactory = getQueryMethod().getResultProcessor();
-		ReturnedType returnedType = resultFactory.getReturnedType();
+	private Class<?> getTypeToQueryFor(ReturnedType returnedType) {
 
 		Class<?> result = getQueryMethod().isQueryForEntity() ? returnedType.getDomainType() : null;
 
@@ -92,8 +81,10 @@ final class NativeJpaQuery extends AbstractStringBasedJpaQuery {
 			return result;
 		}
 
-		return returnedType.isProjecting() && !getMetamodel().isJpaManaged(returnedType.getReturnedType()) //
-				? HibernateUtils.isVersionOrBetter(HIBERNATE_VERSION_SUPPORTING_TUPLES) ? Tuple.class : null //
-				: result;
+		return returnedType.isProjecting() //
+				&& !getMetamodel().isJpaManaged(returnedType.getReturnedType()) //
+				&& HibernateUtils.supportsTuplesForNativeQueries() //
+						? Tuple.class //
+						: result;
 	}
 }

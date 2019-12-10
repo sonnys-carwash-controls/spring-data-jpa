@@ -1,11 +1,11 @@
 /*
- * Copyright 2011 the original author or authors.
+ * Copyright 2011-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,14 +23,18 @@ import javax.persistence.Persistence;
 
 import org.hibernate.Version;
 
+/**
+ * Produces and {@link EntityManagerFactory}.
+ *
+ * @author Dirk Mahler
+ * @author Jens Schauder
+ */
 class EntityManagerFactoryProducer {
 
 	@Produces
 	@ApplicationScoped
 	public EntityManagerFactory createEntityManagerFactory() {
-
-		String hibernateVersion = Version.getVersionString();
-		return Persistence.createEntityManagerFactory(hibernateVersion.startsWith("5.2") ? "cdi-52" : "cdi");
+		return Persistence.createEntityManagerFactory(Version.getVersionString().startsWith("5.") ? "cdi-5x" : "cdi");
 	}
 
 	public void close(@Disposes EntityManagerFactory entityManagerFactory) {

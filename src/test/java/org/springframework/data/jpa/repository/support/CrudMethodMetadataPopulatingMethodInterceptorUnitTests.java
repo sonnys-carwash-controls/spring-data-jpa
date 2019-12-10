@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,15 +30,16 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 import org.springframework.aop.framework.ProxyFactory;
-import org.springframework.aop.interceptor.ExposeInvocationInterceptor;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.support.CrudMethodMetadataPostProcessor.CrudMethodMetadataPopulatingMethodInterceptor;
+import org.springframework.data.jpa.repository.support.CrudMethodMetadataPostProcessor.ExposeRepositoryInvocationInterceptor;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Unit tests for {@link CrudMethodMetadataPopulatingMethodInterceptor}.
  * 
  * @author Oliver Gierke
+ * @author Mark Paluch
  */
 @RunWith(MockitoJUnitRunner.class)
 public class CrudMethodMetadataPopulatingMethodInterceptorUnitTests {
@@ -56,8 +57,8 @@ public class CrudMethodMetadataPopulatingMethodInterceptorUnitTests {
 		assertThat(TransactionSynchronizationManager.getResource(method), is(nullValue()));
 	}
 
-	@Test // DATAJPA-839
-	public void looksUpCrudMethodMetadataForEveryInvocation() throws Throwable {
+	@Test // DATAJPA-839, DATAJPA-1368
+	public void looksUpCrudMethodMetadataForEveryInvocation() {
 
 		CrudMethodMetadata metadata = new CrudMethodMetadataPostProcessor().getCrudMethodMetadata();
 
@@ -68,7 +69,7 @@ public class CrudMethodMetadataPopulatingMethodInterceptorUnitTests {
 	private Method prepareMethodInvocation(String name) throws Throwable {
 
 		Method method = Sample.class.getMethod(name);
-		ExposeInvocationInterceptor.INSTANCE.invoke(invocation);
+		ExposeRepositoryInvocationInterceptor.INSTANCE.invoke(invocation);
 		when(invocation.getMethod()).thenReturn(method);
 
 		return method;
@@ -78,7 +79,7 @@ public class CrudMethodMetadataPopulatingMethodInterceptorUnitTests {
 
 		ProxyFactory factory = new ProxyFactory(new Object());
 		factory.addInterface(Sample.class);
-		factory.addAdvice(ExposeInvocationInterceptor.INSTANCE);
+		factory.addAdvice(ExposeRepositoryInvocationInterceptor.INSTANCE);
 		factory.addAdvice(CrudMethodMetadataPopulatingMethodInterceptor.INSTANCE);
 		factory.addAdvice(new MethodInterceptor() {
 

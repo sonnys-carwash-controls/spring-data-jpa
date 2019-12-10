@@ -1,11 +1,11 @@
 /*
- * Copyright 2008-2017 the original author or authors.
+ * Copyright 2008-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -57,6 +57,7 @@ public class JpaQueryCreator extends AbstractQueryCreator<CriteriaQuery<? extend
 	private final ParameterMetadataProvider provider;
 	private final ReturnedType returnedType;
 	private final PartTree tree;
+	private final EscapeCharacter escape;
 
 	/**
 	 * Create a new {@link JpaQueryCreator}.
@@ -72,13 +73,14 @@ public class JpaQueryCreator extends AbstractQueryCreator<CriteriaQuery<? extend
 		super(tree);
 		this.tree = tree;
 
-		CriteriaQuery<? extends Object> criteriaQuery = createCriteriaQuery(builder, type);
+		CriteriaQuery<?> criteriaQuery = createCriteriaQuery(builder, type);
 
 		this.builder = builder;
 		this.query = criteriaQuery.distinct(tree.isDistinct());
 		this.root = query.from(type.getDomainType());
 		this.provider = provider;
 		this.returnedType = type;
+		this.escape = provider.getEscape();
 	}
 
 	/**
@@ -289,7 +291,7 @@ public class JpaQueryCreator extends AbstractQueryCreator<CriteriaQuery<? extend
 					Expression<String> stringPath = getTypedPath(root, part);
 					Expression<String> propertyExpression = upperIfIgnoreCase(stringPath);
 					Expression<String> parameterExpression = upperIfIgnoreCase(provider.next(part, String.class).getExpression());
-					Predicate like = builder.like(propertyExpression, parameterExpression);
+					Predicate like = builder.like(propertyExpression, parameterExpression, escape.getEscapeCharacter());
 					return type.equals(NOT_LIKE) || type.equals(NOT_CONTAINING) ? like.not() : like;
 				case TRUE:
 					Expression<Boolean> truePath = getTypedPath(root, part);

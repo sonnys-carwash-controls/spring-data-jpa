@@ -1,11 +1,11 @@
 /*
- * Copyright 2008-2017 the original author or authors.
+ * Copyright 2008-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -31,6 +31,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -45,7 +46,6 @@ import javax.persistence.criteria.Predicate;
 import javax.persistence.criteria.Root;
 
 import org.hamcrest.Matchers;
-import org.hibernate.Version;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -53,12 +53,11 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.data.domain.Example;
 import org.springframework.data.domain.ExampleMatcher;
-import org.springframework.data.domain.ExampleMatcher.GenericPropertyMatcher;
-import org.springframework.data.domain.ExampleMatcher.StringMatcher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -67,15 +66,19 @@ import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.domain.Sort.Order;
+import org.springframework.data.domain.ExampleMatcher.*;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.domain.sample.Address;
 import org.springframework.data.jpa.domain.sample.Role;
 import org.springframework.data.jpa.domain.sample.SpecialUser;
 import org.springframework.data.jpa.domain.sample.User;
+import org.springframework.data.jpa.provider.HibernateUtils;
 import org.springframework.data.jpa.provider.PersistenceProvider;
 import org.springframework.data.jpa.repository.sample.SampleEvaluationContextExtension.SampleSecurityContextHolder;
 import org.springframework.data.jpa.repository.sample.UserRepository;
 import org.springframework.data.jpa.repository.sample.UserRepository.NameOnly;
+import org.springframework.data.projection.TargetAware;
+import org.springframework.data.util.Version;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.transaction.annotation.Transactional;
@@ -87,7 +90,7 @@ import com.google.common.base.Optional;
  * well as Hibernate configuration to execute tests.
  * <p>
  * To test further persistence providers subclass this class and provide a custom provider configuration.
- * 
+ *
  * @author Oliver Gierke
  * @author Kevin Raymond
  * @author Thomas Darimont
@@ -320,7 +323,7 @@ public class UserRepositoryTests {
 
 	/**
 	 * Tests, that searching by the email address of the reference user returns exactly that instance.
-	 * 
+	 *
 	 * @throws Exception
 	 */
 	@Test
@@ -348,7 +351,7 @@ public class UserRepositoryTests {
 
 	/**
 	 * Tests that all users get deleted by triggering {@link UserRepository#deleteAll()}.
-	 * 
+	 *
 	 * @throws Exception
 	 */
 	@Test
@@ -2182,7 +2185,7 @@ public class UserRepositoryTests {
 	@Test // DATAJPA-980
 	public void supportsProjectionsWithNativeQueries() {
 
-		Assume.assumeTrue(Version.getVersionString().startsWith("5.2"));
+		Assume.assumeTrue(HibernateUtils.supportsTuplesForNativeQueries());
 
 		flushTestUsers();
 
@@ -2192,6 +2195,88 @@ public class UserRepositoryTests {
 
 		assertThat(result.getFirstname(), is(user.getFirstname()));
 		assertThat(result.getLastname(), is(user.getLastname()));
+	}
+
+	@Test // DATAJPA-1248
+	public void supportsProjectionsWithNativeQueriesAndCamelCaseProperty() throws Exception {
+
+		Assume.assumeTrue(HibernateUtils.supportsTuplesForNativeQueries());
+
+		flushTestUsers();
+		User user = repository.findAll().get(0);
+
+		UserRepository.EmailOnly result = repository.findEmailOnlyByNativeQuery(user.getId());
+
+		System.out.println(((TargetAware) result).getTarget());
+
+		String emailAddress = result.getEmailAddress();
+
+		assertThat(emailAddress, is(notNullValue()));
+		assertThat(emailAddress, is(user.getEmailAddress()));
+	}
+
+	@Test // DATAJPA-1273
+	public void bindsNativeQueryResultsToProjectionByName() {
+
+		Assume.assumeTrue(HibernateUtils.supportsTuples());
+
+		flushTestUsers();
+
+		List<NameOnly> result = repository.findByNamedQueryWithAliasInInvertedOrder();
+
+		assertThat(result, is(not(empty())));
+
+		NameOnly element = result.get(0);
+
+		assertThat(element.getFirstname(), is("Joachim"));
+		assertThat(element.getLastname(), is("Arrasz"));
+	}
+
+	@Test // DATAJPA-1301
+	public void returnsNullValueInMap() {
+
+		Assume.assumeTrue(HibernateUtils.supportsTuples());
+
+		firstUser.setLastname(null);
+		flushTestUsers();
+
+		Map<String, Object> map = repository.findMapWithNullValues();
+
+		assertThat(map.keySet(), contains("firstname", "lastname"));
+		assertThat(map.containsKey("firstname"), is(true));
+		assertThat(map.containsKey("lastname"), is(true));
+
+		assertThat(map.get("firstname"), is((Object) "Oliver"));
+		assertThat(map.get("lastname"), is(nullValue()));
+		assertThat(map.get("non-existent"), is(nullValue()));
+		assertThat(map.get(new Object()), is(nullValue()));
+	}
+
+	@Test // DATAJPA-1562
+	public void findListOfMap() {
+
+		Assume.assumeTrue(HibernateUtils.supportsTuples());
+
+		flushTestUsers();
+
+		List<Map<String, Object>> listOfMaps = repository.findListOfMaps();
+
+		assertThat(listOfMaps, hasSize(4));
+		for (Map<String, Object> map : listOfMaps) {
+			assertThat(map.entrySet(), hasSize(2));
+		}
+	}
+
+	@Test(expected = DataIntegrityViolationException.class) // DATAJPA-1535
+	public void savingUserThrowsAnException() {
+		// if this test fails this means deleteNewInstanceSucceedsByDoingNothing() might actually save the user without the
+		// test failing, which would be a bad thing.
+		repository.save(new User());
+	}
+
+	@Test // DATAJPA-1535
+	public void deleteNewInstanceSucceedsByDoingNothing() {
+		repository.delete(new User());
 	}
 
 	private Page<User> executeSpecWithSort(Sort sort) {

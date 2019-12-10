@@ -1,11 +1,11 @@
 /*
- * Copyright 2008-2014 the original author or authors.
+ * Copyright 2008-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,18 +15,22 @@
  */
 package org.springframework.data.jpa.repository;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
+import static org.eclipse.persistence.Version.*;
+import static org.hamcrest.MatcherAssert.*;
+import static org.hamcrest.Matchers.*;
 
 import javax.persistence.Query;
 
+import org.junit.Assume;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.springframework.data.jpa.repository.sample.UserRepository;
+import org.springframework.data.util.Version;
 import org.springframework.test.context.ContextConfiguration;
 
 /**
  * Testcase to run {@link UserRepository} integration tests on top of EclipseLink.
- * 
+ *
  * @author Oliver Gierke
  * @author Thomas Darimont
  * @author Jens Schauder
@@ -91,5 +95,103 @@ public class EclipseLinkNamespaceUserRepositoryTests extends NamespaceUserReposi
 
 		Query query = em.createNativeQuery("select 1 from User where firstname=? and lastname=?");
 		assertThat(query.getParameters().size(), equalTo(0));
+	}
+
+	/**
+	 * Ignored until https://bugs.eclipse.org/bugs/show_bug.cgi?id=525319 is fixed.
+	 */
+	@Override
+	public void supportsProjectionsWithNativeQueriesAndCamelCaseProperty() {}
+
+	/**
+	 * Ignored until https://bugs.eclipse.org/bugs/show_bug.cgi?id=525319 is fixed.
+	 */
+	@Override
+	public void supportsProjectionsWithNativeQueries() {}
+
+	/**
+	 * Ignored until https://bugs.eclipse.org/bugs/show_bug.cgi?id=525319 is fixed.
+	 */
+	@Override
+	@Test // DATAJPA-1301
+	public void returnsNullValueInMap() {}
+
+	/**
+	 * TODO: Remove, once https://bugs.eclipse.org/bugs/show_bug.cgi?id=289141 is fixed.
+	 */
+	@Override
+	@Test
+	public void bindsNativeQueryResultsToProjectionByName() {}
+
+	/**
+	 * TODO: Remove, once https://bugs.eclipse.org/bugs/show_bug.cgi?id=289141 is fixed.
+	 */
+	@Override
+	public void findListOfMap() {}
+
+	/**
+	 * Ignores the test for EclipseLink 2.7.2. Reconsider once https://bugs.eclipse.org/bugs/show_bug.cgi?id=533240 is
+	 * fixed.
+	 */
+	@Override
+	@Test // DATAJPA-1314
+	public void findByEmptyArrayOfIntegers() throws Exception {
+
+		assumeNotEclipseLink2_7_2plus();
+
+		super.findByEmptyArrayOfIntegers();
+	}
+
+	/**
+	 * Ignores the test for EclipseLink 2.7.2. Reconsider once https://bugs.eclipse.org/bugs/show_bug.cgi?id=533240 is
+	 * fixed.
+	 */
+	@Override
+	@Test // DATAJPA-1314
+	public void findByAgeWithEmptyArrayOfIntegersOrFirstName() {
+
+		assumeNotEclipseLink2_7_2plus();
+
+		super.findByAgeWithEmptyArrayOfIntegersOrFirstName();
+	}
+
+	/**
+	 * Ignores the test for EclipseLink 2.7.2. Reconsider once https://bugs.eclipse.org/bugs/show_bug.cgi?id=533240 is
+	 * fixed.
+	 */
+	@Override
+	@Test // DATAJPA-1314
+	public void findByEmptyCollectionOfIntegers() throws Exception {
+
+		assumeNotEclipseLink2_7_2plus();
+
+		super.findByEmptyCollectionOfIntegers();
+	}
+
+	/**
+	 * Ignores the test for EclipseLink 2.7.2. Reconsider once https://bugs.eclipse.org/bugs/show_bug.cgi?id=533240 is
+	 * fixed.
+	 */
+	@Override
+	@Test // DATAJPA-1314
+	public void findByEmptyCollectionOfStrings() throws Exception {
+
+		assumeNotEclipseLink2_7_2plus();
+
+		super.findByEmptyCollectionOfStrings();
+	}
+
+	/**
+	 * Ignores the test for EclipseLink.
+	 */
+	@Override
+	@Test
+	@Ignore
+	public void savingUserThrowsAnException() {}
+
+	private void assumeNotEclipseLink2_7_2plus() {
+
+		Assume.assumeFalse("Empty collections seem to be broken in EclipseLink 2.7.2+",
+				Version.parse(getVersion()).isGreaterThanOrEqualTo(new Version(2, 7, 2)));
 	}
 }

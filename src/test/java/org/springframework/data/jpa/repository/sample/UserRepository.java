@@ -1,11 +1,11 @@
 /*
- * Copyright 2008-2017 the original author or authors.
+ * Copyright 2008-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,6 +18,7 @@ package org.springframework.data.jpa.repository.sample;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -45,7 +46,7 @@ import com.google.common.base.Optional;
 
 /**
  * Repository interface for {@code User}s.
- * 
+ *
  * @author Oliver Gierke
  * @author Thomas Darimont
  */
@@ -55,7 +56,7 @@ public interface UserRepository
 	/**
 	 * Retrieve users by their lastname. The finder {@literal User.findByLastname} is declared in
 	 * {@literal META-INF/orm.xml} .
-	 * 
+	 *
 	 * @param lastname
 	 * @return all users with the given lastname
 	 */
@@ -77,7 +78,7 @@ public interface UserRepository
 	/**
 	 * Retrieve users by their email address. The finder {@literal User.findByEmailAddress} is declared as annotation at
 	 * {@code User}.
-	 * 
+	 *
 	 * @param emailAddress
 	 * @return the user with the given email address
 	 */
@@ -88,7 +89,7 @@ public interface UserRepository
 
 	/**
 	 * Retrieves users by the given email and lastname. Acts as a dummy method declaration to test finder query creation.
-	 * 
+	 *
 	 * @param emailAddress
 	 * @param lastname
 	 * @return the user with the given email address and lastname
@@ -98,7 +99,7 @@ public interface UserRepository
 	/**
 	 * Retrieves users by email address and lastname or firstname. Acts as a dummy method declaration to test finder query
 	 * creation.
-	 * 
+	 *
 	 * @param emailAddress
 	 * @param lastname
 	 * @param username
@@ -108,7 +109,7 @@ public interface UserRepository
 
 	/**
 	 * Retrieves a user by its username using the query annotated to the method.
-	 * 
+	 *
 	 * @param emailAddress
 	 * @return
 	 */
@@ -118,7 +119,7 @@ public interface UserRepository
 
 	/**
 	 * Method to directly create query from and adding a {@link Pageable} parameter to be regarded on query execution.
-	 * 
+	 *
 	 * @param pageable
 	 * @param lastname
 	 * @return
@@ -128,7 +129,7 @@ public interface UserRepository
 	/**
 	 * Method to directly create query from and adding a {@link Pageable} parameter to be regarded on query execution.
 	 * Just returns the queried {@link Page}'s contents.
-	 * 
+	 *
 	 * @param firstname
 	 * @param pageable
 	 * @return
@@ -149,7 +150,7 @@ public interface UserRepository
 
 	/**
 	 * Manipulating query to set all {@link User}'s names to the given one.
-	 * 
+	 *
 	 * @param lastname
 	 */
 	@Modifying
@@ -161,7 +162,7 @@ public interface UserRepository
 
 	/**
 	 * Method where parameters will be applied by name. Note that the order of the parameters is then not crucial anymore.
-	 * 
+	 *
 	 * @param foo
 	 * @param bar
 	 * @return
@@ -174,7 +175,7 @@ public interface UserRepository
 
 	/**
 	 * Method to check query creation and named parameter usage go well hand in hand.
-	 * 
+	 *
 	 * @param lastname
 	 * @param firstname
 	 * @return
@@ -481,6 +482,27 @@ public interface UserRepository
 	// DATAJPA-1185
 	<T> List<T> findAsListByFirstnameLike(String name, Class<T> projectionType);
 
+	// DATAJPA-1248
+	@Query(value = "SELECT emailaddress FROM SD_User WHERE id = ?1", nativeQuery = true)
+	EmailOnly findEmailOnlyByNativeQuery(Integer id);
+
+	// DATAJPA-1273
+	List<NameOnly> findByNamedQueryWithAliasInInvertedOrder();
+
+	// DATAJPA-1301
+	@Query("select firstname as firstname, lastname as lastname from User u where u.firstname = 'Oliver'")
+	Map<String, Object> findMapWithNullValues();
+
+	// DATAJPA-1562
+	@Query("select firstname as firstname, lastname as lastname from User u")
+	List<Map<String, Object>> findListOfMaps();
+
+	// DATAJPA-1334
+	List<NameOnlyDto> findByNamedQueryWithConstructorExpression();
+
+	// DATAJPA-1519
+	@Query("select u from User u where u.lastname like %?#{escape([0])}% escape '\\'")
+	List<User> findContainingEscaped(String namePart);
 
 	interface RolesAndFirstname {
 
@@ -494,5 +516,9 @@ public interface UserRepository
 		String getFirstname();
 
 		String getLastname();
+	}
+
+	interface EmailOnly {
+		String getEmailAddress();
 	}
 }

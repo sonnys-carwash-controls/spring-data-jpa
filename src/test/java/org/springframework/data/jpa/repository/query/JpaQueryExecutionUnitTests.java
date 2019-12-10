@@ -1,11 +1,11 @@
 /*
- * Copyright 2008-2017 the original author or authors.
+ * Copyright 2008-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,6 +28,7 @@ import javax.persistence.EntityManager;
 import javax.persistence.Query;
 import javax.persistence.TypedQuery;
 
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -46,6 +47,8 @@ import org.springframework.data.repository.query.Parameters;
  * @author Oliver Gierke
  * @author Thomas Darimont
  * @author Mark Paluch
+ * @author Nicolas Cirigliano
+ * @author Jens Schauder
  */
 @RunWith(MockitoJUnitRunner.class)
 public class JpaQueryExecutionUnitTests {
@@ -56,6 +59,14 @@ public class JpaQueryExecutionUnitTests {
 	@Mock JpaQueryMethod method;
 
 	@Mock TypedQuery<Long> countQuery;
+
+	@Before
+	public void setUp(){
+
+		when(query.executeUpdate()).thenReturn(0);
+		when(jpaQuery.createQuery(Mockito.any(Object[].class))).thenReturn(query);
+		when(jpaQuery.getQueryMethod()).thenReturn(method);
+	}
 
 	@Test(expected = IllegalArgumentException.class)
 	public void rejectsNullQuery() {
@@ -82,18 +93,31 @@ public class JpaQueryExecutionUnitTests {
 		}.execute(jpaQuery, new Object[] {}), is(nullValue()));
 	}
 
-	@Test
+	@Test // DATAJPA-806
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	public void modifyingExecutionClearsEntityManagerIfSet() {
+	public void modifyingExecutionFlushesEntityManagerIfSet() {
 
-		when(query.executeUpdate()).thenReturn(0);
 		when(method.getReturnType()).thenReturn((Class) void.class);
-		when(jpaQuery.createQuery(Mockito.any(Object[].class))).thenReturn(query);
-		when(jpaQuery.getQueryMethod()).thenReturn(method);
+		when(method.getFlushAutomatically()).thenReturn(true);
 
 		ModifyingExecution execution = new ModifyingExecution(method, em);
 		execution.execute(jpaQuery, new Object[] {});
 
+		verify(em, times(1)).flush();
+		verify(em, times(0)).clear();
+	}
+
+	@Test
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	public void modifyingExecutionClearsEntityManagerIfSet() {
+
+		when(method.getReturnType()).thenReturn((Class) void.class);
+		when(method.getClearAutomatically()).thenReturn(true);
+
+		ModifyingExecution execution = new ModifyingExecution(method, em);
+		execution.execute(jpaQuery, new Object[] {});
+
+		verify(em, times(0)).flush();
 		verify(em, times(1)).clear();
 	}
 

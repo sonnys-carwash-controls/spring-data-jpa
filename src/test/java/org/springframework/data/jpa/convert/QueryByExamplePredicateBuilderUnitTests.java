@@ -1,11 +1,11 @@
 /*
- * Copyright 2016-2017 the original author or authors.
+ * Copyright 2016-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -48,6 +48,7 @@ import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 import org.springframework.data.domain.Example;
 import org.springframework.data.domain.ExampleMatcher;
+import org.springframework.data.jpa.repository.query.EscapeCharacter;
 import org.springframework.util.ObjectUtils;
 
 /**
@@ -56,6 +57,7 @@ import org.springframework.util.ObjectUtils;
  * @author Christoph Strobl
  * @author Mark Paluch
  * @author Oliver Gierke
+ * @author Jens Schauder
  */
 @RunWith(MockitoJUnitRunner.class)
 @SuppressWarnings({ "rawtypes", "unchecked" })
@@ -118,22 +120,23 @@ public class QueryByExamplePredicateBuilderUnitTests {
 
 	@Test(expected = IllegalArgumentException.class) // DATAJPA-218
 	public void getPredicateShouldThrowExceptionOnNullRoot() {
-		QueryByExamplePredicateBuilder.getPredicate(null, cb, of(new Person()));
+		QueryByExamplePredicateBuilder.getPredicate(null, cb, of(new Person()), EscapeCharacter.DEFAULT);
 	}
 
 	@Test(expected = IllegalArgumentException.class) // DATAJPA-218
 	public void getPredicateShouldThrowExceptionOnNullCriteriaBuilder() {
-		QueryByExamplePredicateBuilder.getPredicate(root, null, of(new Person()));
+		QueryByExamplePredicateBuilder.getPredicate(root, null, of(new Person()), EscapeCharacter.DEFAULT);
 	}
 
 	@Test(expected = IllegalArgumentException.class) // DATAJPA-218
 	public void getPredicateShouldThrowExceptionOnNullExample() {
-		QueryByExamplePredicateBuilder.getPredicate(root, null, null);
+		QueryByExamplePredicateBuilder.getPredicate(root, null, null, EscapeCharacter.DEFAULT);
 	}
 
 	@Test // DATAJPA-218
 	public void emptyCriteriaListShouldResultTruePredicate() {
-		assertThat(QueryByExamplePredicateBuilder.getPredicate(root, cb, of(new Person())), equalTo(truePredicate));
+		assertThat(QueryByExamplePredicateBuilder.getPredicate(root, cb, of(new Person()), EscapeCharacter.DEFAULT),
+				equalTo(truePredicate));
 	}
 
 	@Test // DATAJPA-218
@@ -142,7 +145,8 @@ public class QueryByExamplePredicateBuilderUnitTests {
 		Person p = new Person();
 		p.firstname = "foo";
 
-		assertThat(QueryByExamplePredicateBuilder.getPredicate(root, cb, of(p)), equalTo(dummyPredicate));
+		assertThat(QueryByExamplePredicateBuilder.getPredicate(root, cb, of(p), EscapeCharacter.DEFAULT),
+				equalTo(dummyPredicate));
 		verify(cb, times(1)).equal(any(Expression.class), eq("foo"));
 	}
 
@@ -157,7 +161,7 @@ public class QueryByExamplePredicateBuilderUnitTests {
 		exception.expectCause(IsInstanceOf.<Throwable> instanceOf(IllegalArgumentException.class));
 		exception.expectMessage("Unexpected path type");
 
-		QueryByExamplePredicateBuilder.getPredicate(root, cb, of(p));
+		QueryByExamplePredicateBuilder.getPredicate(root, cb, of(p), EscapeCharacter.DEFAULT);
 	}
 
 	@Test // DATAJPA-218
@@ -167,7 +171,8 @@ public class QueryByExamplePredicateBuilderUnitTests {
 		p.firstname = "foo";
 		p.age = 2L;
 
-		assertThat(QueryByExamplePredicateBuilder.getPredicate(root, cb, of(p)), equalTo(andPredicate));
+		assertThat(QueryByExamplePredicateBuilder.getPredicate(root, cb, of(p), EscapeCharacter.DEFAULT),
+				equalTo(andPredicate));
 
 		verify(cb, times(1)).equal(any(Expression.class), eq("foo"));
 		verify(cb, times(1)).equal(any(Expression.class), eq(2L));
@@ -182,9 +187,65 @@ public class QueryByExamplePredicateBuilderUnitTests {
 
 		Example<Person> example = of(person, ExampleMatcher.matchingAny());
 
-		assertThat(QueryByExamplePredicateBuilder.getPredicate(root, cb, example), equalTo(orPredicate));
+		assertThat(QueryByExamplePredicateBuilder.getPredicate(root, cb, example, EscapeCharacter.DEFAULT),
+				equalTo(orPredicate));
 
 		verify(cb, times(1)).or(Matchers.<Predicate>anyVararg());
+	}
+
+	@Test // DATAJPA-1534
+	public void likePatternsGetEscapedContaining() {
+
+		Person person = new Person();
+		person.firstname = "f\\o_o";
+
+		Example<Person> example = of( //
+				person, //
+				ExampleMatcher //
+						.matchingAny() //
+						.withStringMatcher(ExampleMatcher.StringMatcher.CONTAINING) //
+		);
+
+		QueryByExamplePredicateBuilder.getPredicate(root, cb, example, EscapeCharacter.DEFAULT);
+
+		verify(cb, times(1)).like(any(Expression.class), eq("%f\\\\o\\_o%"), eq('\\'));
+	}
+
+	@Test // DATAJPA-1534
+
+	public void likePatternsGetEscapedStarting() {
+
+		Person person = new Person();
+		person.firstname = "f\\o_o";
+
+		Example<Person> example = of( //
+				person, //
+				ExampleMatcher //
+						.matchingAny() //
+						.withStringMatcher(ExampleMatcher.StringMatcher.STARTING) //
+		);
+
+		QueryByExamplePredicateBuilder.getPredicate(root, cb, example, EscapeCharacter.DEFAULT);
+
+		verify(cb, times(1)).like(any(Expression.class), eq("f\\\\o\\_o%"), eq('\\'));
+	}
+
+	@Test // DATAJPA-1534
+	public void likePatternsGetEscapedEnding() {
+
+		Person person = new Person();
+		person.firstname = "f\\o_o";
+
+		Example<Person> example = of( //
+				person, //
+				ExampleMatcher //
+						.matchingAny() //
+						.withStringMatcher(ExampleMatcher.StringMatcher.ENDING) //
+		);
+
+		QueryByExamplePredicateBuilder.getPredicate(root, cb, example, EscapeCharacter.DEFAULT);
+
+		verify(cb, times(1)).like(any(Expression.class), eq("%f\\\\o\\_o"), eq('\\'));
 	}
 
 	static class Person {

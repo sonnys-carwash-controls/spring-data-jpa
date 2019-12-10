@@ -1,11 +1,11 @@
 /*
- * Copyright 2013-2015 the original author or authors.
+ * Copyright 2013-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,6 +28,7 @@ import org.springframework.test.context.ContextConfiguration;
  * EclipseLink execution for {@link JpaMetamodelEntityInformationIntegrationTests}.
  * 
  * @author Oliver Gierke
+ * @author Jens Schauder
  */
 @ContextConfiguration("classpath:eclipselink.xml")
 public class EclipseLinkJpaMetamodelEntityInformationIntegrationTests
@@ -68,6 +69,15 @@ public class EclipseLinkJpaMetamodelEntityInformationIntegrationTests
 	public void detectsVersionPropertyOnMappedSuperClass() {
 		super.detectsVersionPropertyOnMappedSuperClass();
 	}
+
+	/**
+	 * Ignored due to https://bugs.eclipse.org/bugs/show_bug.cgi?id=531528 EclipseLink doesn't support
+	 * {@link javax.persistence.IdClass} referencing inner classes.
+	 */
+	@Ignore
+	@Test
+	@Override
+	public void correctlyDeterminesIdValueForNestedIdClassesWithNonPrimitiveNonManagedType() {}
 
 	@Override
 	protected String getMetadadataPersitenceUnitName() {

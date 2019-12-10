@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2017 the original author or authors.
+ * Copyright 2011-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License
 import org.springframework.aop.framework.Advised;
@@ -7,7 +7,7 @@ import org.springframework.aop.framework.Advised;
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -54,7 +54,7 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 /**
  * Integration tests for {@link PartTreeJpaQuery}.
- * 
+ *
  * @author Oliver Gierke
  * @author Mark Paluch
  */
@@ -79,7 +79,7 @@ public class PartTreeJpaQueryIntegrationTests {
 	public void test() throws Exception {
 
 		JpaQueryMethod queryMethod = getQueryMethod("findByFirstname", String.class, Pageable.class);
-		PartTreeJpaQuery jpaQuery = new PartTreeJpaQuery(queryMethod, entityManager, provider);
+		PartTreeJpaQuery jpaQuery = new PartTreeJpaQuery(queryMethod, entityManager, provider, EscapeCharacter.DEFAULT);
 
 		jpaQuery.createQuery(new Object[] { "Matthews", new PageRequest(0, 1) });
 		jpaQuery.createQuery(new Object[] { "Matthews", new PageRequest(0, 1) });
@@ -103,7 +103,7 @@ public class PartTreeJpaQueryIntegrationTests {
 	public void recreatesQueryIfNullValueIsGiven() throws Exception {
 
 		JpaQueryMethod queryMethod = getQueryMethod("findByFirstname", String.class, Pageable.class);
-		PartTreeJpaQuery jpaQuery = new PartTreeJpaQuery(queryMethod, entityManager, provider);
+		PartTreeJpaQuery jpaQuery = new PartTreeJpaQuery(queryMethod, entityManager, provider, EscapeCharacter.DEFAULT);
 
 		Query query = jpaQuery.createQuery(new Object[] { "Matthews", new PageRequest(0, 1) });
 
@@ -118,7 +118,7 @@ public class PartTreeJpaQueryIntegrationTests {
 	public void shouldLimitExistsProjectionQueries() throws Exception {
 
 		JpaQueryMethod queryMethod = getQueryMethod("existsByFirstname", String.class);
-		PartTreeJpaQuery jpaQuery = new PartTreeJpaQuery(queryMethod, entityManager, provider);
+		PartTreeJpaQuery jpaQuery = new PartTreeJpaQuery(queryMethod, entityManager, provider, EscapeCharacter.DEFAULT);
 
 		Query query = jpaQuery.createQuery(new Object[] { "Matthews" });
 
@@ -129,7 +129,7 @@ public class PartTreeJpaQueryIntegrationTests {
 	public void shouldSelectAliasedIdForExistsProjectionQueries() throws Exception {
 
 		JpaQueryMethod queryMethod = getQueryMethod("existsByFirstname", String.class);
-		PartTreeJpaQuery jpaQuery = new PartTreeJpaQuery(queryMethod, entityManager, provider);
+		PartTreeJpaQuery jpaQuery = new PartTreeJpaQuery(queryMethod, entityManager, provider, EscapeCharacter.DEFAULT);
 
 		Query query = jpaQuery.createQuery(new Object[] { "Matthews" });
 
@@ -146,7 +146,7 @@ public class PartTreeJpaQueryIntegrationTests {
 		thrown.expectMessage("findByFirstname"); // the method being analyzed
 		thrown.expectMessage(" firstname "); // the property we are looking for
 
-		new PartTreeJpaQuery(method, entityManager, provider);
+		new PartTreeJpaQuery(method, entityManager, provider, EscapeCharacter.of('\\'));
 	}
 
 	@Test // DATAJPA-863
@@ -159,7 +159,7 @@ public class PartTreeJpaQueryIntegrationTests {
 		thrown.expectMessage("findByNoSuchProperty"); // the method being analyzed
 		thrown.expectMessage(" noSuchProperty "); // the property we are looking for
 
-		new PartTreeJpaQuery(method, entityManager, provider);
+		new PartTreeJpaQuery(method, entityManager, provider, EscapeCharacter.of('\\'));
 	}
 
 	private void testIgnoreCase(String methodName, Object... values) throws Exception {
@@ -172,7 +172,7 @@ public class PartTreeJpaQueryIntegrationTests {
 
 		JpaQueryMethod queryMethod = getQueryMethod(methodName, parameterTypes);
 		PartTreeJpaQuery jpaQuery = new PartTreeJpaQuery(queryMethod, entityManager,
-				PersistenceProvider.fromEntityManager(entityManager));
+				PersistenceProvider.fromEntityManager(entityManager), EscapeCharacter.DEFAULT);
 		jpaQuery.createQuery(values);
 	}
 

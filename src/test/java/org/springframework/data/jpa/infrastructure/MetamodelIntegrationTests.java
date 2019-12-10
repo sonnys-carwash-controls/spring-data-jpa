@@ -1,11 +1,11 @@
 /*
- * Copyright 2013-2014 the original author or authors.
+ * Copyright 2013-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,6 +18,7 @@ package org.springframework.data.jpa.infrastructure;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import javax.persistence.EntityManager;
@@ -86,6 +87,7 @@ public abstract class MetamodelIntegrationTests {
 	public void doesNotExposeAliasForTupleIfNoneDefined() {
 
 		User user = new User();
+
 		user.setFirstname("Dave");
 		user.setEmailAddress("email");
 
@@ -98,5 +100,33 @@ public abstract class MetamodelIntegrationTests {
 
 		assertThat(elements, hasSize(1));
 		assertThat(elements.get(0).getAlias(), is(nullValue()));
+	}
+
+	@Test // DATAJPA-1273
+	@Transactional
+	public void returnsAliasesInTuple() {
+
+		User user = new User();
+		user.setFirstname("Dave");
+		user.setLastname("Matthews");
+		user.setEmailAddress("email");
+
+		em.persist(user);
+
+		TypedQuery<Tuple> query = em.createQuery(
+				"SELECT u.lastname AS lastname, u.firstname AS firstname FROM User u ORDER BY u.lastname ASC", Tuple.class);
+
+		List<Tuple> resultList = query.getResultList();
+		List<TupleElement<?>> elements = resultList.get(0).getElements();
+
+		assertThat(elements, hasSize(2));
+
+		List<String> aliases = new ArrayList<String>(elements.size());
+
+		for (TupleElement<?> element : elements) {
+			aliases.add(element.getAlias());
+		}
+
+		assertThat(aliases, containsInAnyOrder("firstname", "lastname"));
 	}
 }

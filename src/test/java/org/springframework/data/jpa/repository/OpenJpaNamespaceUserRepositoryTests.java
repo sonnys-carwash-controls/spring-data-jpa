@@ -1,11 +1,11 @@
 /*
- * Copyright 2008-2014 the original author or authors.
+ * Copyright 2008-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,7 +15,7 @@
  */
 package org.springframework.data.jpa.repository;
 
-import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.*;
@@ -41,7 +41,7 @@ import org.springframework.test.context.ContextConfiguration;
 
 /**
  * Testcase to run {@link UserRepository} integration tests on top of OpenJPA.
- * 
+ *
  * @author Oliver Gierke
  * @author Jens Schauder
  */
@@ -98,10 +98,9 @@ public class OpenJpaNamespaceUserRepositoryTests extends NamespaceUserRepository
 	@Override
 	public void shouldFindUsersInNativeQueryWithPagination() {}
 
-
 	/**
-	 * OpenJpa doesn't provide the correct values in the version referenced in this branch.
-	 * Since the problem is already gone in the version referenced in master no bug was created.
+	 * OpenJpa doesn't provide the correct values in the version referenced in this branch. Since the problem is already
+	 * gone in the version referenced in master no bug was created.
 	 */
 	@Override
 	@Test // DATAJPA-1172
@@ -110,4 +109,42 @@ public class OpenJpaNamespaceUserRepositoryTests extends NamespaceUserRepository
 		Query query = em.createNativeQuery("select 1 from User where firstname=? and lastname=?");
 		assertThat(query.getParameters().size(), equalTo(0));
 	}
+
+	/**
+	 * ignored since OpenJPA doesn't support tuples
+	 */
+	@Override
+	public void returnsNullValueInMap() {}
+
+	/**
+	 * ignored since OpenJPA doesn't support tuples
+	 */
+	@Override
+	public void supportsProjectionsWithNativeQueriesAndCamelCaseProperty() throws Exception {}
+
+	/**
+	 * ignored since OpenJPA doesn't support tuples
+	 */
+	@Override
+	public void bindsNativeQueryResultsToProjectionByName() {}
+
+	/**
+	 * ignored since OpenJPA doesn't support tuples
+	 */
+	@Override
+	public void findListOfMap() {}
+
+	/**
+	 * ignored since OpenJPA doesn't support tuples
+	 */
+	@Override
+	public void supportsProjectionsWithNativeQueries() {}
+
+	/**
+	 * Ignores the test for OpenJPA.
+	 */
+	@Override
+	@Test
+	@Ignore
+	public void savingUserThrowsAnException() {}
 }

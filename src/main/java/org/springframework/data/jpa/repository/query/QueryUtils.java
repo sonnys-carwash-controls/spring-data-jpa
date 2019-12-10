@@ -1,11 +1,11 @@
 /*
- * Copyright 2008-2017 the original author or authors.
+ * Copyright 2008-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -62,7 +62,7 @@ import org.springframework.util.StringUtils;
 
 /**
  * Simple utility class to create JPA queries.
- * 
+ *
  * @author Oliver Gierke
  * @author Kevin Raymond
  * @author Thomas Darimont
@@ -71,6 +71,9 @@ import org.springframework.util.StringUtils;
  * @author Mark Paluch
  * @author Sébastien Péralta
  * @author Jens Schauder
+ * @author Florian Lüdiger
+ * @author Grégoire Druant
+ * @author Mohammad Hewedy
  */
 public abstract class QueryUtils {
 
@@ -79,8 +82,9 @@ public abstract class QueryUtils {
 
 	private static final String COUNT_REPLACEMENT_TEMPLATE = "select count(%s) $5$6$7";
 	private static final String SIMPLE_COUNT_VALUE = "$2";
-	private static final String COMPLEX_COUNT_VALUE = "$3$6";
-	private static final String ORDER_BY_PART = "(?iu)\\s+order\\s+by\\s+.*$";
+	private static final String COMPLEX_COUNT_VALUE = "$3 $6";
+	private static final String COMPLEX_COUNT_LAST_VALUE = "$6";
+	private static final String ORDER_BY_PART = "(?iu)\\s+order\\s+by\\s+.*";
 
 	private static final Pattern ALIAS_MATCH;
 	private static final Pattern COUNT_MATCH;
@@ -105,9 +109,11 @@ public abstract class QueryUtils {
 
 	private static final int QUERY_JOIN_ALIAS_GROUP_INDEX = 3;
 	private static final int VARIABLE_NAME_GROUP_INDEX = 4;
+	private static final int COMPLEX_COUNT_FIRST_INDEX = 3;
 
 	private static final Pattern PUNCTATION_PATTERN = Pattern.compile(".*((?![\\._])[\\p{Punct}|\\s])");
 	private static final Pattern FUNCTION_PATTERN;
+	private static final Pattern FIELD_ALIAS_PATTERN;
 
 	private static final String UNSAFE_PROPERTY_REFERENCE = "Sort expression '%s' must only contain property references or "
 			+ "aliases used in the select clause. If you really want to use something other than that for sorting, please use "
@@ -121,12 +127,12 @@ public abstract class QueryUtils {
 		builder.append(IDENTIFIER_GROUP); // Entity name, can be qualified (any
 		builder.append("(?:\\sas)*"); // exclude possible "as" keyword
 		builder.append("(?:\\s)+"); // at least one space separating
-		builder.append("(?!(?:where))(\\w*)"); // the actual alias
+		builder.append("(?!(?:where|group\\s*by|order\\s*by))(\\w+)"); // the actual alias
 
 		ALIAS_MATCH = compile(builder.toString(), CASE_INSENSITIVE);
 
 		builder = new StringBuilder();
-		builder.append("(select\\s+((distinct )?(.+?)?)\\s+)?(from\\s+");
+		builder.append("(select\\s+((distinct)?((?s).+?)?)\\s+)?(from\\s+");
 		builder.append(IDENTIFIER);
 		builder.append("(?:\\s+as)?\\s+)");
 		builder.append(IDENTIFIER_GROUP);
@@ -158,11 +164,20 @@ public abstract class QueryUtils {
 		CONSTRUCTOR_EXPRESSION = compile(builder.toString(), CASE_INSENSITIVE + DOTALL);
 
 		builder = new StringBuilder();
-		builder.append("\\s+"); // at least one space
-		builder.append("\\w+\\([0-9a-zA-z\\._,\\s']+\\)"); // any function call including parameters within the brackets
-		builder.append("\\s+[as|AS]+\\s+(([\\w\\.]+))"); // the potential alias
+		// any function call including parameters within the brackets
+		builder.append("\\w+\\s*\\([\\w\\.,\\s'=]+\\)");
+		// the potential alias
+		builder.append("\\s+[as|AS]+\\s+(([\\w\\.]+))");
 
 		FUNCTION_PATTERN = compile(builder.toString());
+
+		builder = new StringBuilder();
+		builder.append("\\s+"); // at least one space
+		builder.append("[^\\s\\(\\)]+"); // No white char no bracket
+		builder.append("\\s+[as|AS]+\\s+(([\\w\\.]+))"); // the potential alias
+
+		FIELD_ALIAS_PATTERN = compile(builder.toString());
+
 	}
 
 	/**
@@ -174,7 +189,7 @@ public abstract class QueryUtils {
 
 	/**
 	 * Returns the query string to execute an exists query for the given id attributes.
-	 * 
+	 *
 	 * @param entityName the name of the entity to create the query for, must not be {@literal null}.
 	 * @param countQueryPlaceHolder the placeholder for the count clause, must not be {@literal null}.
 	 * @param idAttributes the id attributes for the entity, must not be {@literal null}.
@@ -199,7 +214,7 @@ public abstract class QueryUtils {
 
 	/**
 	 * Returns the query string for the given class name.
-	 * 
+	 *
 	 * @param template
 	 * @param entityName
 	 * @return
@@ -213,7 +228,7 @@ public abstract class QueryUtils {
 
 	/**
 	 * Adds {@literal order by} clause to the JPQL query. Uses the first alias to bind the sorting property to.
-	 * 
+	 *
 	 * @param query the query string to which sorting is applied
 	 * @param sort the sort specification to apply.
 	 * @return the modified query string.
@@ -224,7 +239,7 @@ public abstract class QueryUtils {
 
 	/**
 	 * Adds {@literal order by} clause to the JPQL query.
-	 * 
+	 *
 	 * @param query the query string to which sorting is applied. Must not be {@literal null} or empty.
 	 * @param sort the sort specification to apply.
 	 * @param alias the alias to be used in the order by clause. Must not be {@literal null} or empty.
@@ -246,11 +261,12 @@ public abstract class QueryUtils {
 			builder.append(", ");
 		}
 
-		Set<String> aliases = getOuterJoinAliases(query);
-		Set<String> functionAliases = getFunctionAliases(query);
+		Set<String> joinAliases = getOuterJoinAliases(query);
+		Set<String> selectionAliases = getFunctionAliases(query);
+		selectionAliases.addAll(getFieldAliases(query));
 
 		for (Order order : sort) {
-			builder.append(getOrderClause(aliases, functionAliases, alias, order)).append(", ");
+			builder.append(getOrderClause(joinAliases, selectionAliases, alias, order)).append(", ");
 		}
 
 		builder.delete(builder.length() - 2, builder.length());
@@ -261,19 +277,19 @@ public abstract class QueryUtils {
 	/**
 	 * Returns the order clause for the given {@link Order}. Will prefix the clause with the given alias if the referenced
 	 * property refers to a join alias, i.e. starts with {@code $alias.}.
-	 * 
+	 *
 	 * @param joinAliases the join aliases of the original query.
 	 * @param alias the alias for the root entity.
 	 * @param order the order object to build the clause for.
 	 * @return
 	 */
-	private static String getOrderClause(Set<String> joinAliases, Set<String> functionAlias, String alias, Order order) {
+	private static String getOrderClause(Set<String> joinAliases, Set<String> selectionAlias, String alias, Order order) {
 
 		String property = order.getProperty();
 
 		checkSortExpression(order);
 
-		if (functionAlias.contains(property)) {
+		if (selectionAlias.contains(property)) {
 			return String.format("%s %s", property, toJpaDirection(order));
 		}
 
@@ -295,7 +311,7 @@ public abstract class QueryUtils {
 
 	/**
 	 * Returns the aliases used for {@code left (outer) join}s.
-	 * 
+	 *
 	 * @param query
 	 * @return
 	 */
@@ -316,12 +332,32 @@ public abstract class QueryUtils {
 	}
 
 	/**
+	 * Returns the aliases used for fields in the query.
+	 *
+	 * @param query a {@literal String} containing a query. Must not be {@literal null}.
+	 * @return a {@literal Set} containing all found aliases. Guaranteed to be not {@literal null}.
+	 */
+	private static Set<String> getFieldAliases(String query) {
+		Set<String> result = new HashSet<String>();
+		Matcher matcher = FIELD_ALIAS_PATTERN.matcher(query);
+
+		while (matcher.find()) {
+			String alias = matcher.group(1);
+
+			if (StringUtils.hasText(alias)) {
+				result.add(alias);
+			}
+		}
+		return result;
+	}
+
+	/**
 	 * Returns the aliases used for aggregate functions like {@code SUM, COUNT, ...}.
 	 *
 	 * @param query
 	 * @return
 	 */
-	private static Set<String> getFunctionAliases(String query) {
+	static Set<String> getFunctionAliases(String query) {
 
 		Set<String> result = new HashSet<String>();
 		Matcher matcher = FUNCTION_PATTERN.matcher(query);
@@ -344,7 +380,7 @@ public abstract class QueryUtils {
 
 	/**
 	 * Resolves the alias for the entity to be retrieved from the given JPA query.
-	 * 
+	 *
 	 * @param query
 	 * @return
 	 */
@@ -358,7 +394,7 @@ public abstract class QueryUtils {
 	/**
 	 * Creates a where-clause referencing the given entities and appends it to the given query string. Binds the given
 	 * entities to the query.
-	 * 
+	 *
 	 * @param <T>
 	 * @param queryString must not be {@literal null}.
 	 * @param entities must not be {@literal null}.
@@ -408,7 +444,7 @@ public abstract class QueryUtils {
 
 	/**
 	 * Creates a count projected query from the given original query.
-	 * 
+	 *
 	 * @param originalQuery must not be {@literal null} or empty.
 	 * @return
 	 */
@@ -418,7 +454,7 @@ public abstract class QueryUtils {
 
 	/**
 	 * Creates a count projected query from the given original query.
-	 * 
+	 *
 	 * @param originalQuery must not be {@literal null}.
 	 * @param countProjection may be {@literal null}.
 	 * @return
@@ -434,10 +470,14 @@ public abstract class QueryUtils {
 		if (countProjection == null) {
 
 			String variable = matcher.matches() ? matcher.group(VARIABLE_NAME_GROUP_INDEX) : null;
-			boolean useVariable = variable != null && StringUtils.hasText(variable) && !variable.startsWith("new")
+			boolean useVariable = StringUtils.hasText(variable) && !variable.startsWith(" new")
 					&& !variable.startsWith("count(") && !variable.contains(",");
 
-			String replacement = useVariable ? SIMPLE_COUNT_VALUE : COMPLEX_COUNT_VALUE;
+			String complexCountValue = matcher.matches() &&
+					StringUtils.hasText(matcher.group(COMPLEX_COUNT_FIRST_INDEX)) ?
+					COMPLEX_COUNT_VALUE : COMPLEX_COUNT_LAST_VALUE;
+
+			String replacement = useVariable ? SIMPLE_COUNT_VALUE : complexCountValue;
 			countQuery = matcher.replaceFirst(String.format(COUNT_REPLACEMENT_TEMPLATE, replacement));
 		} else {
 			countQuery = matcher.replaceFirst(String.format(COUNT_REPLACEMENT_TEMPLATE, countProjection));
@@ -448,7 +488,7 @@ public abstract class QueryUtils {
 
 	/**
 	 * Returns whether the given {@link Query} contains named parameters.
-	 * 
+	 *
 	 * @param query
 	 * @return
 	 */
@@ -469,7 +509,7 @@ public abstract class QueryUtils {
 
 	/**
 	 * Returns whether the given query contains named parameters.
-	 * 
+	 *
 	 * @param query can be {@literal null} or empty.
 	 * @return
 	 */
@@ -479,7 +519,7 @@ public abstract class QueryUtils {
 
 	/**
 	 * Turns the given {@link Sort} into {@link javax.persistence.criteria.Order}s.
-	 * 
+	 *
 	 * @param sort the {@link Sort} instance to be transformed into JPA {@link javax.persistence.criteria.Order}s.
 	 * @param from must not be {@literal null}.
 	 * @param cb must not be {@literal null}.
@@ -505,7 +545,7 @@ public abstract class QueryUtils {
 
 	/**
 	 * Returns whether the given JPQL query contains a constructor expression.
-	 * 
+	 *
 	 * @param query must not be {@literal null} or empty.
 	 * @return
 	 * @since 1.10
@@ -519,7 +559,7 @@ public abstract class QueryUtils {
 
 	/**
 	 * Returns the projection part of the query, i.e. everything between {@code select} and {@code from}.
-	 * 
+	 *
 	 * @param query must not be {@literal null} or empty.
 	 * @return
 	 * @since 1.10.2
@@ -534,7 +574,7 @@ public abstract class QueryUtils {
 
 	/**
 	 * Creates a criteria API {@link javax.persistence.criteria.Order} from the given {@link Order}.
-	 * 
+	 *
 	 * @param order the order to transform into a JPA {@link javax.persistence.criteria.Order}
 	 * @param from the {@link From} the {@link Order} expression is based on
 	 * @param cb the {@link CriteriaBuilder} to build the {@link javax.persistence.criteria.Order} with
@@ -572,7 +612,8 @@ public abstract class QueryUtils {
 			propertyPathModel = from.get(segment).getModel();
 		}
 
-		if (requiresJoin(propertyPathModel, model instanceof PluralAttribute) && !isAlreadyFetched(from, segment)) {
+		if (requiresJoin(propertyPathModel, model instanceof PluralAttribute, !property.hasNext())
+				&& !isAlreadyFetched(from, segment)) {
 			Join<?, ?> join = getOrCreateJoin(from, segment);
 			return (Expression<T>) (property.hasNext() ? toExpressionRecursively(join, property.next()) : join);
 		} else {
@@ -583,15 +624,17 @@ public abstract class QueryUtils {
 
 	/**
 	 * Returns whether the given {@code propertyPathModel} requires the creation of a join. This is the case if we find a
-	 * non-optional association.
-	 * 
+	 * optional association.
+	 *
 	 * @param propertyPathModel must not be {@literal null}.
-	 * @param forPluralAttribute
-	 * @return
+	 * @param isPluralAttribute is the attribute of Collection type?
+	 * @param isLeafProperty is this the final property navigated by a {@link PropertyPath}?
+	 * @return wether an outer join is to be used for integrating this attribute in a query.
 	 */
-	private static boolean requiresJoin(Bindable<?> propertyPathModel, boolean forPluralAttribute) {
+	private static boolean requiresJoin(Bindable<?> propertyPathModel, boolean isPluralAttribute,
+			boolean isLeafProperty) {
 
-		if (propertyPathModel == null && forPluralAttribute) {
+		if (propertyPathModel == null && isPluralAttribute) {
 			return true;
 		}
 
@@ -602,6 +645,10 @@ public abstract class QueryUtils {
 		Attribute<?, ?> attribute = (Attribute<?, ?>) propertyPathModel;
 
 		if (!ASSOCIATION_TYPES.containsKey(attribute.getPersistentAttributeType())) {
+			return false;
+		}
+
+		if (isLeafProperty && !attribute.isCollection()) {
 			return false;
 		}
 
@@ -629,7 +676,7 @@ public abstract class QueryUtils {
 
 	/**
 	 * Returns an existing join for the given attribute if one already exists or creates a new one if not.
-	 * 
+	 *
 	 * @param from the {@link From} to get the current joins from.
 	 * @param attribute the {@link Attribute} to look for in the current joins.
 	 * @return will never be {@literal null}.
@@ -650,7 +697,7 @@ public abstract class QueryUtils {
 
 	/**
 	 * Return whether the given {@link From} contains a fetch declaration for the attribute with the given name.
-	 * 
+	 *
 	 * @param from the {@link From} to check for fetches.
 	 * @param attribute the attribute name to check.
 	 * @return

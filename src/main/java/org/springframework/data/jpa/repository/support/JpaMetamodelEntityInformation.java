@@ -1,11 +1,11 @@
 /*
- * Copyright 2011-2017 the original author or authors.
+ * Copyright 2011-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -34,9 +34,9 @@ import javax.persistence.metamodel.Type.PersistenceType;
 import org.springframework.beans.BeanWrapper;
 import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.core.annotation.AnnotationUtils;
+import org.springframework.data.jpa.util.JpaMetamodel;
 import org.springframework.data.util.DirectFieldAccessFallbackBeanWrapper;
 import org.springframework.util.Assert;
-import org.springframework.util.ClassUtils;
 
 /**
  * Implementation of {@link org.springframework.data.repository.core.EntityInformation} that uses JPA {@link Metamodel}
@@ -46,6 +46,7 @@ import org.springframework.util.ClassUtils;
  * @author Thomas Darimont
  * @author Christoph Strobl
  * @author Mark Paluch
+ * @author Jens Schauder
  */
 public class JpaMetamodelEntityInformation<T, ID extends Serializable> extends JpaEntityInformationSupport<T, ID> {
 
@@ -309,10 +310,12 @@ public class JpaMetamodelEntityInformation<T, ID extends Serializable> extends J
 			extends DirectFieldAccessFallbackBeanWrapper {
 
 		private final Metamodel metamodel;
+		private final JpaMetamodel jpaMetamodel;
 
 		public IdentifierDerivingDirectFieldAccessFallbackBeanWrapper(Class<?> type, Metamodel metamodel) {
 			super(type);
 			this.metamodel = metamodel;
+			this.jpaMetamodel = new JpaMetamodel(metamodel);
 		}
 
 		/**
@@ -379,7 +382,7 @@ public class JpaMetamodelEntityInformation<T, ID extends Serializable> extends J
 
 				Class<? extends Object> idPropertyValueType = idPropertyValue.getClass();
 
-				if (ClassUtils.isPrimitiveOrWrapper(idPropertyValueType)) {
+				if (!jpaMetamodel.isJpaManaged(idPropertyValueType)) {
 					return idPropertyValue;
 				}
 

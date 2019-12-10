@@ -1,11 +1,11 @@
 /*
- * Copyright 2016-2017 the original author or authors.
+ * Copyright 2016-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,6 +20,9 @@ import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import javax.persistence.Tuple;
 import javax.persistence.TupleElement;
@@ -41,6 +44,7 @@ import org.springframework.data.repository.query.ReturnedType;
  * Unit tests for {@link TupleConverter}.
  * 
  * @author Oliver Gierke
+ * @author Jens Schauder
  * @soundtrack James Bay - Let it go (Chaos and the Calm)
  */
 @RunWith(MockitoJUnitRunner.class)
@@ -63,9 +67,9 @@ public class TupleConverterUnitTests {
 
 	@Test // DATAJPA-984
 	@SuppressWarnings("unchecked")
-	public void returnsSingleTupleElementIfItMatchesExpectedType() throws Exception {
+	public void returnsSingleTupleElementIfItMatchesExpectedType() {
 
-		doReturn(Arrays.asList(element)).when(tuple).getElements();
+		doReturn(Collections.singletonList(element)).when(tuple).getElements();
 		doReturn("Foo").when(tuple).get(element);
 
 		TupleConverter converter = new TupleConverter(type);
@@ -75,9 +79,9 @@ public class TupleConverterUnitTests {
 
 	@Test // DATAJPA-1024
 	@SuppressWarnings("unchecked")
-	public void returnsNullForSingleElementTupleWithNullValue() throws Exception {
+	public void returnsNullForSingleElementTupleWithNullValue() {
 
-		doReturn(Arrays.asList(element)).when(tuple).getElements();
+		doReturn(Collections.singletonList(element)).when(tuple).getElements();
 		doReturn(null).when(tuple).get(element);
 
 		TupleConverter converter = new TupleConverter(type);
@@ -85,7 +89,84 @@ public class TupleConverterUnitTests {
 		assertThat(converter.convert(tuple), is(nullValue()));
 	}
 
-	static interface SampleRepository extends CrudRepository<Object, Long> {
+	@Test // DATAJPA-1048
+	@SuppressWarnings("unchecked")
+	public void findsValuesForAllVariantsSupportedByTheTuple() {
+
+		Tuple tuple = new MockTuple();
+
+		TupleConverter converter = new TupleConverter(type);
+
+		Map<String, Object> map = (Map<String, Object>) converter.convert(tuple);
+
+		assertThat(map.get("ONE"), is((Object) "one"));
+		assertThat(map.get("one"), is((Object) "one"));
+		assertThat(map.get("OnE"), is((Object) "one"));
+		assertThat(map.get("oNe"), is((Object) "one"));
+	}
+
+	interface SampleRepository extends CrudRepository<Object, Long> {
 		String someMethod();
+	}
+
+	@SuppressWarnings("unchecked")
+	private static class MockTuple implements Tuple {
+
+		TupleElement<String> one = new StringTupleElement("oNe");
+		TupleElement<String> two = new StringTupleElement("tWo");
+
+		@Override
+		public <X> X get(TupleElement<X> tupleElement) {
+			return (X) get(tupleElement.getAlias());
+		}
+
+		@Override
+		public <X> X get(String alias, Class<X> type) {
+			return (X) get(alias);
+		}
+
+		@Override
+		public Object get(String alias) {
+			return alias.toLowerCase();
+		}
+
+		@Override
+		public <X> X get(int i, Class<X> type) {
+			return (X) String.valueOf(i);
+		}
+
+		@Override
+		public Object get(int i) {
+			return get(i, Object.class);
+		}
+
+		@Override
+		public Object[] toArray() {
+			return new Object[] { one.getAlias().toLowerCase(), two.getAlias().toLowerCase() };
+		}
+
+		@Override
+		public List<TupleElement<?>> getElements() {
+			return Arrays.<TupleElement<?>> asList(one, two);
+		}
+
+		private static class StringTupleElement implements TupleElement<String> {
+
+			private final String value;
+
+			private StringTupleElement(String value) {
+				this.value = value;
+			}
+
+			@Override
+			public Class<? extends String> getJavaType() {
+				return String.class;
+			}
+
+			@Override
+			public String getAlias() {
+				return value;
+			}
+		}
 	}
 }

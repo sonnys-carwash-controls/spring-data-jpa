@@ -1,11 +1,11 @@
 /*
- * Copyright 2011-2017 the original author or authors.
+ * Copyright 2011-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,43 +19,21 @@ import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
 import static org.springframework.data.jpa.repository.support.JpaEntityInformationSupport.*;
 
+import lombok.Data;
+
 import java.io.Serializable;
 import java.sql.Timestamp;
 import java.util.Date;
 
-import javax.persistence.Access;
-import javax.persistence.AccessType;
-import javax.persistence.Entity;
-import javax.persistence.EntityManager;
-import javax.persistence.EntityManagerFactory;
-import javax.persistence.Id;
-import javax.persistence.IdClass;
-import javax.persistence.MappedSuperclass;
-import javax.persistence.Persistence;
-import javax.persistence.PersistenceContext;
+import javax.persistence.*;
 import javax.persistence.metamodel.Metamodel;
 
 import org.hibernate.Version;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
 import org.springframework.data.jpa.domain.AbstractPersistable;
-import org.springframework.data.jpa.domain.sample.ConcreteType1;
-import org.springframework.data.jpa.domain.sample.Item;
-import org.springframework.data.jpa.domain.sample.ItemId;
-import org.springframework.data.jpa.domain.sample.ItemSite;
-import org.springframework.data.jpa.domain.sample.ItemSiteId;
-import org.springframework.data.jpa.domain.sample.PersistableWithIdClass;
-import org.springframework.data.jpa.domain.sample.PersistableWithIdClassPK;
-import org.springframework.data.jpa.domain.sample.PrimitiveVersionProperty;
-import org.springframework.data.jpa.domain.sample.Role;
-import org.springframework.data.jpa.domain.sample.SampleWithIdClass;
-import org.springframework.data.jpa.domain.sample.SampleWithPrimitiveId;
-import org.springframework.data.jpa.domain.sample.SampleWithTimestampVersion;
-import org.springframework.data.jpa.domain.sample.Site;
-import org.springframework.data.jpa.domain.sample.User;
-import org.springframework.data.jpa.domain.sample.VersionedUser;
+import org.springframework.data.jpa.domain.sample.*;
 import org.springframework.data.repository.core.EntityInformation;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
@@ -67,6 +45,7 @@ import org.springframework.test.util.ReflectionTestUtils;
  * @author Oliver Gierke
  * @author Thomas Darimont
  * @author Christoph Strobl
+ * @author Jens Schauder
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration({ "classpath:infrastructure.xml" })
@@ -287,8 +266,28 @@ public class JpaMetamodelEntityInformationIntegrationTests {
 		assertThat(ReflectionTestUtils.getField(information, "versionAttribute"), is(notNullValue()));
 	}
 
+	@Test // DATAJPA-1105
+	public void correctlyDeterminesIdValueForNestedIdClassesWithNonPrimitiveNonManagedType() {
+
+		EntityManagerFactory emf = Persistence.createEntityManagerFactory(getMetadadataPersitenceUnitName());
+		EntityManager em = emf.createEntityManager();
+
+		JpaEntityInformation<EntityWithNestedIdClass, ?> information = getEntityInformation(EntityWithNestedIdClass.class,
+				em);
+
+		EntityWithNestedIdClass entity = new EntityWithNestedIdClass();
+		entity.id = 23L;
+		entity.reference = new EntityWithIdClass();
+		entity.reference.id1 = "one";
+		entity.reference.id2 = "two";
+
+		Object id = information.getId(entity);
+
+		assertThat(id, is(notNullValue()));
+	}
+
 	protected String getMetadadataPersitenceUnitName() {
-		return Version.getVersionString().startsWith("5.2") ? "metadata-52" : "metadata";
+		return Version.getVersionString().startsWith("5.") ? "metadata-5x": "metadata";
 	}
 
 	@SuppressWarnings("serial")
@@ -311,5 +310,37 @@ public class JpaMetamodelEntityInformationIntegrationTests {
 	@Access(AccessType.FIELD)
 	public static class Sample extends Identifiable {
 
+	}
+
+	@Entity
+	@Access(AccessType.FIELD)
+	@IdClass(EntityWithNestedIdClassPK.class)
+	public static class EntityWithNestedIdClass {
+
+		@Id Long id;
+		@Id @ManyToOne private EntityWithIdClass reference;
+	}
+
+	@Entity
+	@Access(AccessType.FIELD)
+	@IdClass(EntityWithIdClassPK.class)
+	public static class EntityWithIdClass {
+
+		@Id String id1;
+		@Id String id2;
+	}
+
+	@Data
+	public static class EntityWithIdClassPK implements Serializable {
+
+		String id1;
+		String id2;
+	}
+
+	@Data
+	public static class EntityWithNestedIdClassPK implements Serializable {
+
+		Long id;
+		EntityWithIdClassPK reference;
 	}
 }

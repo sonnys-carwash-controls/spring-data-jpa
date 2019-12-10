@@ -1,11 +1,11 @@
 /*
- * Copyright 2008-2017 the original author or authors.
+ * Copyright 2008-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,15 +17,19 @@ package org.springframework.data.jpa.repository.query;
 
 import javax.persistence.EntityManager;
 import javax.persistence.Query;
+import javax.persistence.Tuple;
 import javax.persistence.TypedQuery;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.springframework.data.jpa.provider.QueryExtractor;
 import org.springframework.data.repository.query.Parameters;
+import org.springframework.data.repository.query.ParametersParameterAccessor;
 import org.springframework.data.repository.query.QueryCreationException;
 import org.springframework.data.repository.query.RepositoryQuery;
+import org.springframework.data.repository.query.ResultProcessor;
+import org.springframework.data.repository.query.ReturnedType;
+import org.springframework.util.StringUtils;
 
 /**
  * Implementation of {@link RepositoryQuery} based on {@link javax.persistence.NamedQuery}s.
@@ -47,6 +51,7 @@ final class NamedQuery extends AbstractJpaQuery {
 	private final String countProjection;
 	private final QueryExtractor extractor;
 	private final boolean namedCountQueryIsPresent;
+	private final StringQuery declaredQuery;
 
 	/**
 	 * Creates a new {@link NamedQuery}.
@@ -80,6 +85,11 @@ final class NamedQuery extends AbstractJpaQuery {
 			LOG.warn("Finder method {} is backed by a NamedQuery" + " but contains a Pageable parameter! Sorting delivered "
 					+ "via this Pageable will not be applied!", method);
 		}
+
+		Query query = em.createNamedQuery(queryName);
+		String queryString = extractor.extractQueryString(query);
+
+		this.declaredQuery = StringUtils.hasText(queryString) ? new StringQuery(queryString) : null;
 	}
 
 	/**
@@ -139,7 +149,15 @@ final class NamedQuery extends AbstractJpaQuery {
 	@Override
 	protected Query doCreateQuery(Object[] values) {
 
-		Query query = getEntityManager().createNamedQuery(queryName);
+		EntityManager em = getEntityManager();
+
+		JpaQueryMethod queryMethod = getQueryMethod();
+		ResultProcessor processor = queryMethod.getResultProcessor()
+				.withDynamicProjection(new ParametersParameterAccessor(queryMethod.getParameters(), values));
+
+		Class<?> typeToRead = getTypeToRead(processor.getReturnedType());
+		Query query = typeToRead == null ? em.createNamedQuery(queryName) : em.createNamedQuery(queryName, typeToRead);
+
 		return createBinder(values).bindAndPrepare(query);
 	}
 
@@ -154,13 +172,51 @@ final class NamedQuery extends AbstractJpaQuery {
 		TypedQuery<Long> countQuery = null;
 
 		if (namedCountQueryIsPresent) {
+
 			countQuery = em.createNamedQuery(countQueryName, Long.class);
+
 		} else {
-			Query query = createQuery(values);
-			String queryString = extractor.extractQueryString(query);
-			countQuery = em.createQuery(QueryUtils.createCountQueryFor(queryString, countProjection), Long.class);
+
+			if (declaredQuery == null) {
+				throw new IllegalStateException("Cannot derive count query without an extracted source query!");
+			}
+
+			String countQueryString = QueryUtils.createCountQueryFor(declaredQuery.getQueryString(), countProjection);
+
+			countQuery = em.createQuery(countQueryString, Long.class);
 		}
 
 		return createBinder(values).bind(countQuery);
+	}
+
+	/* 
+	 * (non-Javadoc)
+	 * @see org.springframework.data.jpa.repository.query.AbstractJpaQuery#getTypeToRead()
+	 */
+	@Override
+	protected Class<?> getTypeToRead(ReturnedType returnedType) {
+
+		if (getQueryMethod().isNativeQuery()) {
+
+			Class<?> type = returnedType.getReturnedType();
+			Class<?> domainType = returnedType.getDomainType();
+
+			// Domain or subtype -> use return type
+			if (domainType.isAssignableFrom(type)) {
+				return type;
+			}
+
+			// Domain type supertype -> use domain type
+			if (type.isAssignableFrom(domainType)) {
+				return domainType;
+			}
+
+			// Tuples for projection interfaces or explicit SQL mappings for everything else
+			return type.isInterface() ? Tuple.class : null;
+		}
+
+		return declaredQuery != null && !declaredQuery.hasConstructorExpression() //
+				? super.getTypeToRead(returnedType) //
+				: null;
 	}
 }

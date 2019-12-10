@@ -1,11 +1,11 @@
 /*
- * Copyright 2008-2014 the original author or authors.
+ * Copyright 2008-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,6 +20,7 @@ import java.io.Serializable;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 
+import org.springframework.data.jpa.repository.query.EscapeCharacter;
 import org.springframework.data.mapping.context.MappingContext;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.core.support.RepositoryFactorySupport;
@@ -29,7 +30,7 @@ import org.springframework.util.Assert;
 /**
  * Special adapter for Springs {@link org.springframework.beans.factory.FactoryBean} interface to allow easy setup of
  * repository factories via Spring configuration.
- * 
+ *
  * @author Oliver Gierke
  * @author Eberhard Wolff
  * @param <T> the type of the repository
@@ -38,10 +39,11 @@ public class JpaRepositoryFactoryBean<T extends Repository<S, ID>, S, ID extends
 		extends TransactionalRepositoryFactoryBeanSupport<T, S, ID> {
 
 	private EntityManager entityManager;
+	private EscapeCharacter escapeCharacter = EscapeCharacter.DEFAULT;
 
 	/**
 	 * Creates a new {@link JpaRepositoryFactoryBean} for the given repository interface.
-	 * 
+	 *
 	 * @param repositoryInterface must not be {@literal null}.
 	 */
 	public JpaRepositoryFactoryBean(Class<? extends T> repositoryInterface) {
@@ -49,8 +51,17 @@ public class JpaRepositoryFactoryBean<T extends Repository<S, ID>, S, ID extends
 	}
 
 	/**
+	 * Configures the escape character to be used to escape reserved characters in LIKE expressions.
+	 *
+	 * @param escapeCharacter
+	 */
+	public void setEscapeCharacter(char escapeCharacter) {
+		this.escapeCharacter = EscapeCharacter.of(escapeCharacter);
+	}
+
+	/**
 	 * The {@link EntityManager} to be used.
-	 * 
+	 *
 	 * @param entityManager the entityManager to set
 	 */
 	@PersistenceContext
@@ -58,7 +69,7 @@ public class JpaRepositoryFactoryBean<T extends Repository<S, ID>, S, ID extends
 		this.entityManager = entityManager;
 	}
 
-	/* 
+	/*
 	 * (non-Javadoc)
 	 * @see org.springframework.data.repository.core.support.RepositoryFactoryBeanSupport#setMappingContext(org.springframework.data.mapping.context.MappingContext)
 	 */
@@ -69,7 +80,7 @@ public class JpaRepositoryFactoryBean<T extends Repository<S, ID>, S, ID extends
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see org.springframework.data.repository.support.
 	 * TransactionalRepositoryFactoryBeanSupport#doCreateRepositoryFactory()
 	 */
@@ -80,17 +91,21 @@ public class JpaRepositoryFactoryBean<T extends Repository<S, ID>, S, ID extends
 
 	/**
 	 * Returns a {@link RepositoryFactorySupport}.
-	 * 
+	 *
 	 * @param entityManager
 	 * @return
 	 */
 	protected RepositoryFactorySupport createRepositoryFactory(EntityManager entityManager) {
-		return new JpaRepositoryFactory(entityManager);
+
+		JpaRepositoryFactory jpaRepositoryFactory = new JpaRepositoryFactory(entityManager);
+		jpaRepositoryFactory.setEscapeCharacter(escapeCharacter);
+
+		return jpaRepositoryFactory;
 	}
 
 	/*
 	 * (non-Javadoc)
-	 * 
+	 *
 	 * @see
 	 * org.springframework.beans.factory.InitializingBean#afterPropertiesSet()
 	 */

@@ -1,11 +1,11 @@
 /*
- * Copyright 2008-2017 the original author or authors.
+ * Copyright 2008-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,9 +15,13 @@
  */
 package org.springframework.data.jpa.repository.query;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.persistence.EntityManager;
 import javax.persistence.LockModeType;
@@ -28,6 +32,8 @@ import javax.persistence.TupleElement;
 import javax.persistence.TypedQuery;
 
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.data.jpa.provider.HibernateUtils;
+import org.springframework.data.jpa.provider.PersistenceProvider;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.query.JpaQueryExecution.CollectionExecution;
 import org.springframework.data.jpa.repository.query.JpaQueryExecution.ModifyingExecution;
@@ -45,20 +51,23 @@ import org.springframework.util.Assert;
 
 /**
  * Abstract base class to implement {@link RepositoryQuery}s.
- * 
+ *
  * @author Oliver Gierke
  * @author Thomas Darimont
  * @author Mark Paluch
+ * @author Nicolas Cirigliano
+ * @author Jens Schauder
  */
 public abstract class AbstractJpaQuery implements RepositoryQuery {
 
 	private final JpaQueryMethod method;
 	private final EntityManager em;
 	private final JpaMetamodel metamodel;
+	private final PersistenceProvider provider;
 
 	/**
 	 * Creates a new {@link AbstractJpaQuery} from the given {@link JpaQueryMethod}.
-	 * 
+	 *
 	 * @param method
 	 * @param em
 	 */
@@ -70,6 +79,7 @@ public abstract class AbstractJpaQuery implements RepositoryQuery {
 		this.method = method;
 		this.em = em;
 		this.metamodel = new JpaMetamodel(em.getMetamodel());
+		this.provider = PersistenceProvider.fromEntityManager(em);
 	}
 
 	/*
@@ -82,7 +92,7 @@ public abstract class AbstractJpaQuery implements RepositoryQuery {
 
 	/**
 	 * Returns the {@link EntityManager}.
-	 * 
+	 *
 	 * @return will never be {@literal null}.
 	 */
 	protected EntityManager getEntityManager() {
@@ -91,7 +101,7 @@ public abstract class AbstractJpaQuery implements RepositoryQuery {
 
 	/**
 	 * Returns the {@link JpaMetamodel}.
-	 * 
+	 *
 	 * @return
 	 */
 	protected JpaMetamodel getMetamodel() {
@@ -134,7 +144,7 @@ public abstract class AbstractJpaQuery implements RepositoryQuery {
 		} else if (method.isPageQuery()) {
 			return new PagedExecution(method.getParameters());
 		} else if (method.isModifyingQuery()) {
-			return method.getClearAutomatically() ? new ModifyingExecution(method, em) : new ModifyingExecution(method, null);
+			return new ModifyingExecution(method, em);
 		} else {
 			return new SingleEntityExecution();
 		}
@@ -142,7 +152,7 @@ public abstract class AbstractJpaQuery implements RepositoryQuery {
 
 	/**
 	 * Applies the declared query hints to the given query.
-	 * 
+	 *
 	 * @param query
 	 * @return
 	 */
@@ -157,7 +167,7 @@ public abstract class AbstractJpaQuery implements RepositoryQuery {
 
 	/**
 	 * Protected to be able to customize in sub-classes.
-	 * 
+	 *
 	 * @param query must not be {@literal null}.
 	 * @param hint must not be {@literal null}.
 	 */
@@ -171,7 +181,7 @@ public abstract class AbstractJpaQuery implements RepositoryQuery {
 
 	/**
 	 * Applies the {@link LockModeType} provided by the {@link JpaQueryMethod} to the given {@link Query}.
-	 * 
+	 *
 	 * @param query must not be {@literal null}.
 	 * @param method must not be {@literal null}.
 	 * @return
@@ -193,7 +203,7 @@ public abstract class AbstractJpaQuery implements RepositoryQuery {
 	/**
 	 * Configures the {@link javax.persistence.EntityGraph} to use for the given {@link JpaQueryMethod} if the
 	 * {@link EntityGraph} annotation is present.
-	 * 
+	 *
 	 * @param query must not be {@literal null}.
 	 * @param method must not be {@literal null}.
 	 * @return
@@ -219,8 +229,27 @@ public abstract class AbstractJpaQuery implements RepositoryQuery {
 	}
 
 	/**
+	 * Returns the type to be used when creating the JPA query.
+	 *
+	 * @return
+	 * @since 2.0.5
+	 */
+	protected Class<?> getTypeToRead(ReturnedType returnedType) {
+
+		if (PersistenceProvider.ECLIPSELINK.equals(provider)) {
+			return null;
+		}
+
+		return returnedType.isProjecting() //
+				&& !getMetamodel().isJpaManaged(returnedType.getReturnedType()) //
+				&& HibernateUtils.supportsTuples() //
+						? Tuple.class //
+						: null;
+	}
+
+	/**
 	 * Creates a {@link Query} instance for the given values.
-	 * 
+	 *
 	 * @param values must not be {@literal null}.
 	 * @return
 	 */
@@ -228,7 +257,7 @@ public abstract class AbstractJpaQuery implements RepositoryQuery {
 
 	/**
 	 * Creates a {@link TypedQuery} for counting using the given values.
-	 * 
+	 *
 	 * @param values must not be {@literal null}.
 	 * @return
 	 */
@@ -240,7 +269,7 @@ public abstract class AbstractJpaQuery implements RepositoryQuery {
 
 		/**
 		 * Creates a new {@link TupleConverter} for the given {@link ReturnedType}.
-		 * 
+		 *
 		 * @param type must not be {@literal null}.
 		 */
 		public TupleConverter(ReturnedType type) {
@@ -250,7 +279,7 @@ public abstract class AbstractJpaQuery implements RepositoryQuery {
 			this.type = type;
 		}
 
-		/* 
+		/*
 		 * (non-Javadoc)
 		 * @see org.springframework.core.convert.converter.Converter#convert(java.lang.Object)
 		 */
@@ -262,7 +291,6 @@ public abstract class AbstractJpaQuery implements RepositoryQuery {
 			}
 
 			Tuple tuple = (Tuple) source;
-			Map<String, Object> result = new HashMap<String, Object>();
 			List<TupleElement<?>> elements = tuple.getElements();
 
 			if (elements.size() == 1) {
@@ -274,27 +302,129 @@ public abstract class AbstractJpaQuery implements RepositoryQuery {
 				}
 			}
 
-			for (TupleElement<?> element : elements) {
-
-				String alias = element.getAlias();
-
-				if (alias == null || isIndexAsString(alias)) {
-					throw new IllegalStateException("No aliases found in result tuple! Make sure your query defines aliases!");
-				}
-
-				result.put(element.getAlias(), tuple.get(element));
-			}
-
-			return result;
+			return new TupleBackedMap(tuple);
 		}
 
-		private static boolean isIndexAsString(String source) {
+		/**
+		 * A {@link Map} implementation which delegates all calls to a {@link Tuple}. Depending on the provided
+		 * {@link Tuple} implementation it might return the same value for various keys of which only one will appear in the
+		 * key/entry set.
+		 *
+		 * @author Jens Schauder
+		 */
+		private static class TupleBackedMap implements Map<String, Object> {
 
-			try {
-				Integer.parseInt(source);
-				return true;
-			} catch (NumberFormatException o_O) {
-				return false;
+			private static final String UNMODIFIABLE_MESSAGE = "A TupleBackedMap cannot be modified.";
+
+			private final Tuple tuple;
+
+			TupleBackedMap(Tuple tuple) {
+				this.tuple = tuple;
+			}
+
+			@Override
+			public int size() {
+				return tuple.getElements().size();
+			}
+
+			@Override
+			public boolean isEmpty() {
+				return tuple.getElements().isEmpty();
+			}
+
+			/**
+			 * If the key is not a {@code String} or not a key of the backing {@link Tuple} this returns {@code false}.
+			 * Otherwise this returns {@code true} even when the value from the backing {@code Tuple} is {@code null}.
+			 *
+			 * @param key the key for which to get the value from the map.
+			 * @return wether the key is an element of the backing tuple.
+			 */
+			@Override
+			public boolean containsKey(Object key) {
+
+				try {
+					tuple.get((String) key);
+					return true;
+				} catch (IllegalArgumentException e) {
+					return false;
+				}
+			}
+
+			@Override
+			public boolean containsValue(Object value) {
+				return Arrays.asList(tuple.toArray()).contains(value);
+			}
+
+			/**
+			 * If the key is not a {@code String} or not a key of the backing {@link Tuple} this returns {@code null}.
+			 * Otherwise the value from the backing {@code Tuple} is returned, which also might be {@code null}.
+			 *
+			 * @param key the key for which to get the value from the map.
+			 * @return the value of the backing {@link Tuple} for that key or {@code null}.
+			 */
+			@Override
+			public Object get(Object key) {
+
+				if (!(key instanceof String)) {
+					return null;
+				}
+
+				try {
+					return tuple.get((String) key);
+				} catch (IllegalArgumentException e) {
+					return null;
+				}
+			}
+
+			@Override
+			public Object put(String key, Object value) {
+				throw new UnsupportedOperationException(UNMODIFIABLE_MESSAGE);
+			}
+
+			@Override
+			public Object remove(Object key) {
+				throw new UnsupportedOperationException(UNMODIFIABLE_MESSAGE);
+			}
+
+			@Override
+			public void putAll(Map<? extends String, ?> m) {
+				throw new UnsupportedOperationException(UNMODIFIABLE_MESSAGE);
+			}
+
+			@Override
+			public void clear() {
+				throw new UnsupportedOperationException(UNMODIFIABLE_MESSAGE);
+			}
+
+			@Override
+			public Set<String> keySet() {
+
+				List<TupleElement<?>> elements = tuple.getElements();
+				Set<String> result = new HashSet<String>(elements.size());
+
+				for (TupleElement<?> element : elements) {
+					result.add(element.getAlias());
+				}
+
+				return result;
+			}
+
+			@Override
+			public Collection<Object> values() {
+				return Arrays.asList(tuple.toArray());
+			}
+
+			@Override
+			public Set<Entry<String, Object>> entrySet() {
+
+				List<TupleElement<?>> elements = tuple.getElements();
+				Set<Entry<String, Object>> result = new HashSet<Entry<String, Object>>(elements.size());
+
+				for (TupleElement<?> element : elements) {
+					result.add(new HashMap.SimpleEntry<String, Object>(element.getAlias(), tuple.get(element)));
+				}
+
+				return result;
 			}
 		}
 	}

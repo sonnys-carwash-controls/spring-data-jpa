@@ -1,20 +1,19 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 
 	<modelVersion>4.0.0</modelVersion>
-
 	<groupId>com.autopilotcontrols.db</groupId>
 	<artifactId>spring-data-jpa-autopilot</artifactId>
-	<version>1.11.10.RELEASE</version>
+	<version>1.11.23.RELEASE</version>
 
 	<name>Spring Data JPA</name>
 	<description>Spring Data module for JPA repositories.</description>
-	<url>http://projects.spring.io/spring-data-jpa</url>
+	<url>https://projects.spring.io/spring-data-jpa</url>
 
 	<parent>
 		<groupId>org.springframework.data.build</groupId>
 		<artifactId>spring-data-parent</artifactId>
-		<version>1.9.9.RELEASE</version>
+		<version>1.9.23.RELEASE</version>
 	</parent>
 
 	<properties>
@@ -27,7 +26,7 @@
 		<hsqldb1>1.8.0.10</hsqldb1>
 		<jpa>2.0.0</jpa>
 		<openjpa>2.4.1</openjpa>
-		<springdata.commons>1.13.9.RELEASE</springdata.commons>
+		<springdata.commons>1.13.23.RELEASE</springdata.commons>
 
 		<sonar.dynamicAnalysis>reuseReports</sonar.dynamicAnalysis>
 		<skip-openjpa>false</skip-openjpa>
@@ -63,6 +62,12 @@
 		</profile>
 		<profile>
 			<id>spring5-next</id>
+			<properties>
+				<skip-openjpa>true</skip-openjpa>
+			</properties>
+		</profile>
+		<profile>
+			<id>spring51-next</id>
 			<properties>
 				<skip-openjpa>true</skip-openjpa>
 			</properties>
@@ -148,15 +153,51 @@
 		<profile>
 			<id>hibernate-52</id>
 			<properties>
-				<hibernate>5.2.11.Final</hibernate>
+				<hibernate>5.2.17.Final</hibernate>
 				<hibernate.artifact>hibernate-core</hibernate.artifact>
 			</properties>
 		</profile>
 		<profile>
 			<id>hibernate-52-next</id>
 			<properties>
-				<hibernate>5.2.12-SNAPSHOT</hibernate>
+				<hibernate>5.2.18-SNAPSHOT</hibernate>
 				<hibernate.artifact>hibernate-core</hibernate.artifact>
+			</properties>
+			<repositories>
+				<repository>
+					<id>jboss</id>
+					<url>https://repository.jboss.org/nexus/content/repositories/public</url>
+				</repository>
+			</repositories>
+		</profile>
+		<profile>
+			<id>hibernate-53</id>
+			<properties>
+				<hibernate>5.3.5.Final</hibernate>
+			</properties>
+		</profile>
+		<profile>
+			<id>hibernate-53-next</id>
+			<properties>
+				<hibernate>5.3.8-SNAPSHOT</hibernate>
+			</properties>
+			<repositories>
+				<repository>
+					<id>jboss</id>
+					<url>https://repository.jboss.org/nexus/content/repositories/public</url>
+				</repository>
+			</repositories>
+		</profile>
+		<profile>
+			<id>hibernate-54</id>
+			<properties>
+				<hibernate>5.4.1.Final</hibernate>
+			</properties>
+		</profile>
+		<profile>
+			<id>hibernate-54-next</id>
+			<properties>
+				<hibernate>5.4.2-SNAPSHOT</hibernate>
 			</properties>
 			<repositories>
 				<repository>
@@ -180,13 +221,13 @@
 		<profile>
 			<id>eclipselink-27</id>
 			<properties>
-				<eclipselink>2.7.0</eclipselink>
+				<eclipselink>2.7.3</eclipselink>
 			</properties>
 		</profile>
 		<profile>
 			<id>eclipselink-27-next</id>
 			<properties>
-				<eclipselink>2.7.1-SNAPSHOT</eclipselink>
+				<eclipselink>2.7.4-SNAPSHOT</eclipselink>
 			</properties>
 			<repositories>
 				<repository>
@@ -196,13 +237,66 @@
 			</repositories>
 		</profile>
 		<profile>
-			<id>release</id>
+			<id>docs</id>
+
 			<build>
 				<plugins>
 					<plugin>
-						<groupId>org.jfrog.buildinfo</groupId>
-						<artifactId>artifactory-maven-plugin</artifactId>
-						<inherited>false</inherited>
+						<artifactId>maven-antrun-plugin</artifactId>
+						<version>1.8</version>
+						<executions>
+							<execution>
+								<id>copy-schemas</id>
+								<phase>prepare-package</phase>
+								<goals>
+									<goal>run</goal>
+								</goals>
+								<configuration>
+									<target>
+										<copy todir="${project.build.directory}/site/schemas">
+											<fileset dir="${project.build.directory}/schemas"/>
+										</copy>
+									</target>
+								</configuration>
+							</execution>
+							<execution>
+								<id>package-and-attach-docs-zip</id>
+								<phase>package</phase>
+								<goals>
+									<goal>run</goal>
+								</goals>
+								<configuration>
+									<tasks>
+										<zip destfile="${project.build.directory}/${project.artifactId}-${project.version}.zip">
+											<fileset dir="${project.build.directory}/site"/>
+										</zip>
+									</tasks>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+
+					<plugin>
+						<groupId>org.codehaus.mojo</groupId>
+						<artifactId>build-helper-maven-plugin</artifactId>
+						<version>1.10</version>
+						<executions>
+							<execution>
+								<id>attach-zip</id>
+								<goals>
+									<goal>attach-artifact</goal>
+								</goals>
+								<phase>package</phase>
+								<configuration>
+									<artifacts>
+										<artifact>
+											<file>${project.build.directory}/${project.artifactId}-${project.version}.zip</file>
+											<type>zip</type>
+										</artifact>
+									</artifacts>
+								</configuration>
+							</execution>
+						</executions>
 					</plugin>
 				</plugins>
 			</build>
@@ -281,7 +375,7 @@
 		<dependency>
 			<groupId>org.hsqldb</groupId>
 			<artifactId>hsqldb</artifactId>
-			<version>2.2.8</version>
+			<version>2.4.1</version>
 			<scope>test</scope>
 		</dependency>
 
@@ -316,6 +410,13 @@
 		</dependency>
 
 		<dependency>
+			<groupId>org.hibernate</groupId>
+			<artifactId>hibernate-jpamodelgen</artifactId>
+			<version>1.3.0.Final</version>
+			<scope>provided</scope>
+		</dependency>
+
+		<dependency>
 			<groupId>org.apache.openjpa</groupId>
 			<artifactId>openjpa-persistence-jdbc</artifactId>
 			<version>${openjpa}</version>
@@ -326,7 +427,7 @@
 					<artifactId>commons-logging</artifactId>
 				</exclusion>
 				<!-- Transitive dependency pulls in JUnit 3.8.1 -->
-				<!-- http://sourceforge.net/tracker/?func=detail&aid=2572567&group_id=31479&atid=402282 -->
+				<!-- https://sourceforge.net/tracker/?func=detail&aid=2572567&group_id=31479&atid=402282 -->
 				<exclusion>
 					<groupId>junit</groupId>
 					<artifactId>junit</artifactId>
@@ -339,6 +440,7 @@
 			<groupId>com.querydsl</groupId>
 			<artifactId>querydsl-apt</artifactId>
 			<version>${querydsl}</version>
+			<classifier>jpa</classifier>
 			<scope>provided</scope>
 		</dependency>
 
@@ -376,13 +478,6 @@
 			<groupId>javax.servlet</groupId>
 			<artifactId>javax.servlet-api</artifactId>
 			<version>3.0.1</version>
-			<scope>test</scope>
-		</dependency>
-
-		<dependency>
-			<groupId>com.google.guava</groupId>
-			<artifactId>guava</artifactId>
-			<version>17.0</version>
 			<scope>test</scope>
 		</dependency>
 
@@ -563,63 +658,8 @@
 			</plugin>
 
 			<plugin>
-				<groupId>com.mysema.maven</groupId>
-				<artifactId>apt-maven-plugin</artifactId>
-				<version>${apt}</version>
-				<configuration>
-					<logOnlyOnError>true</logOnlyOnError>
-					<processors>
-						<processor>com.querydsl.apt.jpa.JPAAnnotationProcessor</processor>
-						<processor>org.hibernate.jpamodelgen.JPAMetaModelEntityProcessor</processor>
-					</processors>
-				</configuration>
-				<executions>
-					<execution>
-						<id>sources</id>
-						<phase>generate-sources</phase>
-						<goals>
-							<goal>process</goal>
-						</goals>
-						<configuration>
-							<outputDirectory>target/generated-sources/querydsl</outputDirectory>
-						</configuration>
-					</execution>
-					<execution>
-						<id>test-sources</id>
-						<phase>generate-test-sources</phase>
-						<goals>
-							<goal>test-process</goal>
-						</goals>
-						<configuration>
-							<testOutputDirectory>target/generated-test-sources/test-querydsl</testOutputDirectory>
-							<options>
-								<querydsl.excludedClasses>
-									org.springframework.data.jpa.repository.util.JpaClassUtilsUnitTests.NamedUser,org.springframework.data.jpa.repository.query.ParameterBinderUnitTests.SampleEmbeddable
-								</querydsl.excludedClasses>
-							</options>
-						</configuration>
-					</execution>
-				</executions>
-				<dependencies>
-					<dependency>
-						<groupId>org.hibernate</groupId>
-						<artifactId>hibernate-jpamodelgen</artifactId>
-						<version>1.3.0.Final</version>
-					</dependency>
-					<dependency>
-						<groupId>com.google.guava</groupId>
-						<artifactId>guava</artifactId>
-						<version>17.0</version>
-					</dependency>
-				</dependencies>
-			</plugin>
-			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-assembly-plugin</artifactId>
-			</plugin>
-			<plugin>
-				<groupId>org.codehaus.mojo</groupId>
-				<artifactId>wagon-maven-plugin</artifactId>
 			</plugin>
 			<plugin>
 				<groupId>org.asciidoctor</groupId>

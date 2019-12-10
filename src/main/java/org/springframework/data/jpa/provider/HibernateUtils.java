@@ -1,11 +1,11 @@
 /*
- * Copyright 2016-2017 the original author or authors.
+ * Copyright 2016-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,15 +27,22 @@ import org.springframework.util.ReflectionUtils;
 /**
  * Utility functions to work with Hibernate. Mostly using reflection to make sure common functionality can be executed
  * against all the Hibernate version we support.
- * 
+ *
+ * @author Oliver Gierke
+ * @author Jens Schauder
  * @since 1.10.2
  * @soundtrack Benny Greb - Soulfood (Live, https://www.youtube.com/watch?v=9_ErMa_CtSw)
  */
-@SuppressWarnings({ "deprecation", "rawtypes" })
+@SuppressWarnings("rawtypes")
 public abstract class HibernateUtils {
 
 	private static final List<String> TYPES = Arrays.asList("org.hibernate.jpa.HibernateQuery",
 			"org.hibernate.ejb.HibernateQuery");
+
+	private static final Version HIBERNATE4_VERSION_SUPPORTING_TUPLES = new Version(4, 2, 21);
+	private static final Version HIBERNATE5_VERSION = new Version(5, 0, 0);
+	private static final Version HIBERNATE5_VERSION_SUPPORTING_TUPLES = new Version(5, 2, 11);
+
 	private static final Method GET_HIBERNATE_QUERY;
 
 	private static final Class<?> HIBERNATE_QUERY_INTERFACE;
@@ -76,7 +83,7 @@ public abstract class HibernateUtils {
 
 	/**
 	 * Return the query string of the underlying native Hibernate query.
-	 * 
+	 *
 	 * @param query
 	 * @return
 	 */
@@ -84,7 +91,7 @@ public abstract class HibernateUtils {
 
 		if (HIBERNATE_QUERY_INTERFACE != null && QUERY_STRING_METHOD != null
 				&& HIBERNATE_QUERY_INTERFACE.isInstance(query)) {
-			return String.class.cast(ReflectionUtils.invokeMethod(QUERY_STRING_METHOD, query));
+			return (String) ReflectionUtils.invokeMethod(QUERY_STRING_METHOD, query);
 		}
 
 		if (HIBERNATE_QUERY_INTERFACE != null && !HIBERNATE_QUERY_INTERFACE.isInstance(query)) {
@@ -102,5 +109,41 @@ public abstract class HibernateUtils {
 	 */
 	public static boolean isVersionOrBetter(Version version) {
 		return HIBERNATE_VERSION.isGreaterThanOrEqualTo(version);
+	}
+
+	/**
+	 * Returns whether the current version of Hibernate supports {@link javax.persistence.Tuple} as a return type for
+	 * native queries.
+	 *
+	 * @since 1.11.23
+	 */
+	public static boolean supportsTuples() {
+
+		return isVersionInInterval(HIBERNATE4_VERSION_SUPPORTING_TUPLES, HIBERNATE5_VERSION)
+				|| isVersionOrBetter(HIBERNATE5_VERSION_SUPPORTING_TUPLES);
+	}
+
+	/**
+	 * Returns whether the current version of Hibernate supports {@link javax.persistence.Tuple} as a return type for
+	 * native queries.
+	 *
+	 * @since 1.11.23
+	 */
+	public static boolean supportsTuplesForNativeQueries() {
+		return isVersionOrBetter(HIBERNATE5_VERSION_SUPPORTING_TUPLES);
+	}
+
+	/**
+	 * Returns whether the currently used version of Hibernate is in the given interval of versions.
+	 *
+	 * @param lowerIncluding lower version bound to compare to. The lower version bound is inclusive. Must not be
+	 *          {@literal null}.
+	 * @param upperExcluding upper version bound to compare to. The upper version bound is exclusive. Must not be
+	 *          {@literal null}.
+	 * @return whence lowerIncluding <= Hibernate version < upperExcluding.
+	 * @since 1.11.23
+	 */
+	private static boolean isVersionInInterval(Version lowerIncluding, Version upperExcluding) {
+		return HIBERNATE_VERSION.isGreaterThanOrEqualTo(lowerIncluding) && HIBERNATE_VERSION.isLessThan(upperExcluding);
 	}
 }

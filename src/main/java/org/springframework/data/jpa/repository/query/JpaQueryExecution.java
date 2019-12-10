@@ -1,11 +1,11 @@
 /*
- * Copyright 2008-2017 the original author or authors.
+ * Copyright 2008-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -53,6 +53,8 @@ import org.springframework.util.ReflectionUtils;
  * @author Oliver Gierke
  * @author Thomas Darimont
  * @author Mark Paluch
+ * @author Nicolas Cirigliano
+ * @author Jens Schauder
  */
 public abstract class JpaQueryExecution {
 
@@ -215,14 +217,18 @@ public abstract class JpaQueryExecution {
 	static class ModifyingExecution extends JpaQueryExecution {
 
 		private final EntityManager em;
+		private final boolean flush;
+		private final boolean clear;
 
 		/**
-		 * Creates an execution that automatically clears the given {@link EntityManager} after execution if the given
-		 * {@link EntityManager} is not {@literal null}.
+		 * Creates an execution that automatically flushes the given {@link EntityManager} before execution and/or
+		 * clears the given {@link EntityManager} after execution.
 		 * 
-		 * @param em
+		 * @param em Must not be {@literal null}.
 		 */
 		public ModifyingExecution(JpaQueryMethod method, EntityManager em) {
+
+			Assert.notNull(em, "The EntityManager must not be null.");
 
 			Class<?> returnType = method.getReturnType();
 
@@ -232,14 +238,20 @@ public abstract class JpaQueryExecution {
 			Assert.isTrue(isInt || isVoid, "Modifying queries can only use void or int/Integer as return type!");
 
 			this.em = em;
+			this.flush = method.getFlushAutomatically();
+			this.clear = method.getClearAutomatically();
 		}
 
 		@Override
 		protected Object doExecute(AbstractJpaQuery query, Object[] values) {
 
+			if (flush) {
+				em.flush();
+			}
+
 			int result = query.createQuery(values).executeUpdate();
 
-			if (em != null) {
+			if (clear) {
 				em.clear();
 			}
 
@@ -330,7 +342,6 @@ public abstract class JpaQueryExecution {
 		private static final String NO_SURROUNDING_TRANSACTION = "You're trying to execute a streaming query method without a surrounding transaction that keeps the connection open so that the Stream can actually be consumed. Make sure the code consuming the stream uses @Transactional or any other way of declaring a (read-only) transaction.";
 
 		private static Method streamMethod = ReflectionUtils.findMethod(Query.class, "getResultStream");
-		private static boolean dynamicCheck = streamMethod == null;
 
 		/*
 		 * (non-Javadoc)
@@ -350,27 +361,7 @@ public abstract class JpaQueryExecution {
 				return ReflectionUtils.invokeMethod(streamMethod, jpaQuery);
 			}
 
-			if (dynamicCheck) {
-
-				Method method = ReflectionUtils.findMethod(jpaQuery.getClass(), "getResultStream");
-
-				// Implementation available but on JPA 2.1
-				if (method != null) {
-
-					// Cache for subsequent reuse to prevent repeated reflection lookups
-					streamMethod = method;
-
-					return ReflectionUtils.invokeMethod(method, jpaQuery);
-
-				} else {
-
-					// Not available on implementation, skip further lookups
-					dynamicCheck = false;
-				}
-			}
-
 			// Fall back to legacy stream execution
-
 			PersistenceProvider persistenceProvider = PersistenceProvider.fromEntityManager(query.getEntityManager());
 			CloseableIterator<Object> iter = persistenceProvider.executeQueryWithResultStream(jpaQuery);
 

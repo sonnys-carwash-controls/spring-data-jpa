@@ -1,11 +1,11 @@
 /*
- * Copyright 2008-2017 the original author or authors.
+ * Copyright 2008-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,11 +30,14 @@ import org.springframework.data.jpa.domain.JpaSort;
 
 /**
  * Unit test for {@link QueryUtils}.
- * 
+ *
  * @author Oliver Gierke
  * @author Thomas Darimont
  * @author Komi Innocent
  * @author Christoph Strobl
+ * @author Florian Lüdiger
+ * @author Grégoire Druant
+ * @author Mohammad Hewedy
  */
 public class QueryUtilsUnitTests {
 
@@ -391,6 +394,95 @@ public class QueryUtilsUnitTests {
 
 		assertThat(QueryUtils.getExistsQueryString("entity", "x", Collections.singleton("id")), //
 				endsWith("WHERE x.id = :id"));
+	}
+
+	@Test // DATAJPA-1363
+	public void discoversAliasWithComplexFunction() {
+
+		assertThat(
+				QueryUtils.getFunctionAliases("select new MyDto(sum(case when myEntity.prop3=0 then 1 else 0 end) as myAlias"),
+				contains("myAlias"));
+	}
+
+	@Test // DATAJPA-1506
+	public void detectsAliasWithGroupAndOrderBy() {
+
+		assertThat(detectAlias("select * from User group by name"), is(nullValue()));
+		assertThat(detectAlias("select * from User order by name"), is(nullValue()));
+		assertThat(detectAlias("select * from User u group by name"), is("u"));
+		assertThat(detectAlias("select * from User u order by name"), is("u"));
+	}
+
+	@Test // DATAJPA-1500
+	public void createCountQuerySupportsWhitespaceCharacters() {
+
+		assertThat(createCountQueryFor("select * from User user\n" + //
+				"  where user.age = 18\n" + //
+				"  order by user.name\n "), //
+				is("select count(user) from User user\n" + //
+						"  where user.age = 18\n "));
+	}
+
+	@Test
+	public void createCountQuerySupportsLineBreaksInSelectClause() {
+
+		assertThat(createCountQueryFor("select user.age,\n" + //
+				"  user.name\n" + //
+				"  from User user\n" + //
+				"  where user.age = 18\n" + //
+				"  order\nby\nuser.name\n "), //
+				is("select count(user) from User user\n" + //
+						"  where user.age = 18\n "));
+	}
+
+	@Test // DATAJPA-1061
+	public void appliesSortCorrectlyForFieldAliases() {
+
+		String query = "SELECT  m.price, lower(m.title) AS title, a.name as authorName   FROM Magazine   m INNER JOIN m.author a";
+		Sort sort = new Sort("authorName");
+		String fullQuery = applySorting(query, sort);
+
+		assertThat(fullQuery, endsWith("order by authorName asc"));
+	}
+
+	@Test // DATAJPA-1061
+	public void appliesSortCorrectlyForFunctionAliases() {
+
+		String query = "SELECT  m.price, lower(m.title) AS title, a.name as authorName   FROM Magazine   m INNER JOIN m.author a";
+		Sort sort = new Sort("title");
+		String fullQuery = applySorting(query, sort);
+
+		assertThat(fullQuery, endsWith("order by title asc"));
+	}
+
+	@Test // DATAJPA-1061
+	public void appliesSortCorrectlyForSimpleField() {
+
+		String query = "SELECT  m.price, lower(m.title) AS title, a.name as authorName   FROM Magazine   m INNER JOIN m.author a";
+		Sort sort = new Sort("price");
+		String fullQuery = applySorting(query, sort);
+
+		assertThat(fullQuery, endsWith("order by m.price asc"));
+	}
+
+	@Test
+	public void createCountQuerySupportsLineBreakRightAfterDistinct() {
+
+		assertThat(createCountQueryFor("select\ndistinct\nuser.age,\n" + //
+				"user.name\n" + //
+				"from\nUser\nuser"), //
+				is(createCountQueryFor("select\ndistinct user.age,\n" + //
+						"user.name\n" + //
+						"from\nUser\nuser")));
+	}
+
+	@Test
+	public void detectsAliasWithGroupAndOrderByWithLineBreaks() {
+
+		assertThat(detectAlias("select * from User group\nby name"), is(nullValue()));
+		assertThat(detectAlias("select * from User order\nby name"), is(nullValue()));
+		assertThat(detectAlias("select * from User u group\nby name"), is("u"));
+		assertThat(detectAlias("select * from User u order\nby name"), is("u"));
 	}
 
 	private static void assertCountQuery(String originalQuery, String countQuery) {
